@@ -615,7 +615,11 @@
           <span class="ntm">${when}</span></li>`;
       }).join('');
       _latestNewsItems=items.map(it=>({title:it.querySelector('title')?.textContent||''}));
-      card.innerHTML=`<div class="ctitle"><span class="ico">⚡</span>News Flash</div><ul class="nlist">${html}</ul>${await trendAdviceHtmlAuto()}`;
+      card.innerHTML=`<div class="ctitle"><span class="ico">⚡</span>News Flash</div><ul class="nlist">${html}</ul><div id="newsAdviceSlot">${trendAdviceHtml()}</div>`;
+      trendAdviceHtmlAuto().then(advice=>{
+        const slot=document.getElementById('newsAdviceSlot');
+        if(slot) slot.outerHTML=advice;
+      }).catch(()=>{});
     }catch(_){
       card.innerHTML=`<div class="ctitle"><span class="ico">⚡</span>News Flash</div><div class="err">ニュースの取得に失敗しました。</div>`;
     }
@@ -684,7 +688,11 @@
           <div class="rd">${esc(sum)}…</div></div>`;
       }).join('');
       _latestResearchItems=entries.map(e=>({title:(e.querySelector('title')?.textContent||'').replace(/\s+/g,' ').trim()}));
-      card.innerHTML=`<div class="ctitle"><span class="ico">🛰</span>Research Radar<span class="more" onclick="loadResearch()">↻</span></div>${html}${await trendAdviceHtmlAuto()}`;
+      card.innerHTML=`<div class="ctitle"><span class="ico">🛰</span>Research Radar<span class="more" onclick="loadResearch()">↻</span></div>${html}<div id="researchAdviceSlot">${trendAdviceHtml()}</div>`;
+      trendAdviceHtmlAuto().then(advice=>{
+        const slot=document.getElementById('researchAdviceSlot');
+        if(slot) slot.outerHTML=advice;
+      }).catch(()=>{});
     }catch(_){
       card.innerHTML=`<div class="ctitle"><span class="ico">🛰</span>Research Radar<span class="more" onclick="loadResearch()">↻</span></div><div class="err">論文の取得に失敗しました。時間を置いて再試行してください。</div>`;
     }
