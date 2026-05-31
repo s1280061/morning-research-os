@@ -955,9 +955,12 @@
     _aiBriefRan=false;
     const wp=loadWeather(city); const mp=loadMarket();
     loadNews(); loadResearch();
-    renderQuote(); renderCareer(); renderCoach(); renderBrief();
-    Promise.allSettled([wp,mp]).then(()=>generateAIBriefing());
-    if(accessToken)loadGoogleData(); else { renderLocalTasks();
+    try{renderQuote();}catch(e){console.error(e);}
+    try{renderCareer();}catch(e){console.error(e);}
+    try{renderCoach();}catch(e){console.error(e);}
+    try{renderBrief();}catch(e){console.error(e);}
+    Promise.allSettled([wp,mp]).then(()=>{try{generateAIBriefing();}catch(e){console.error(e);}});
+    if(accessToken){try{loadGoogleData();}catch(e){console.error(e);}} else { renderLocalTasks();
       document.getElementById('scheduleCard').innerHTML=`<div class="ctitle"><span class="ico">📅</span>Today's Schedule</div><div class="empty">👤 を押して Google 連携すると<br>予定を表示します。</div>`;
       document.getElementById('calCard').innerHTML=`<div class="ctitle"><span class="ico">📆</span>Google Calendar</div><div class="empty">Google連携で今日の予定を表示します。</div>`;
       document.getElementById('mailCard').innerHTML=`<div class="ctitle"><span class="ico">📧</span>Gmail</div><div class="empty">Google連携で未読メールを表示します。</div>`;
