@@ -477,12 +477,16 @@
   }
   async function fetchViaProxy(url, asText=false){
     const proxies=[
+      // 同一オリジンのVercelサーバーレスproxyを最優先（モバイルでも安定）。
+      // localhost等で未デプロイなら404→次の公開proxyにフォールバック。
+      u=>`/api/proxy?url=${encodeURIComponent(u)}`,
       u=>`https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
       u=>`https://corsproxy.io/?url=${encodeURIComponent(u)}`,
       u=>`https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(u)}`,
+      u=>`https://thingproxy.freeboard.io/fetch/${u}`,
     ];
     for(const p of proxies){
-      try{const r=await fetchT(p(url));if(!r.ok)continue;return asText?await r.text():await r.json();}catch(_){}
+      try{const r=await fetchT(p(url),{},12000);if(!r.ok)continue;return asText?await r.text():await r.json();}catch(_){}
     }
     throw new Error('proxy failed');
   }
