@@ -10,7 +10,7 @@ window.APP_CONFIG = {
 
   // ── AI Briefing 用 LLM API ───────────────────────────────
   // OpenAI なら 'openai'、Anthropic(Claude) なら 'anthropic'
-  AI_PROVIDER: 'anthropic',
+  AI_PROVIDER: 'grok',
   AI_API_KEY: '',                // ⚠️ ここには書かない。アプリ右上の ⚙️ 設定画面で入力（ブラウザ内に保存され公開されません）
   AI_MODEL: 'claude-3-5-haiku-20241022',  // 安くて高速。上位は claude-3-5-sonnet-20241022
 

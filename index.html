@@ -409,12 +409,13 @@
     <div class="fld-h">🤖 AI Briefing</div>
     <label class="fld">プロバイダ
       <select id="setProvider">
-        <option value="anthropic">Anthropic (Claude)</option>
+        <option value="grok">xAI (Grok)</option>
         <option value="openai">OpenAI (GPT)</option>
+        <option value="anthropic">Anthropic (Claude)</option>
       </select>
     </label>
     <label class="fld">モデル
-      <input id="setModel" placeholder="claude-3-5-haiku-20241022">
+      <input id="setModel" placeholder="grok-4.3">
     </label>
     <label class="fld">APIキー（sk-... / sk-ant-...）
       <input id="setKey" type="password" placeholder="保存済みの場合は ●●● 表示">
@@ -748,7 +749,15 @@
 
   async function callLLM(system, user){
     const key=CFG.AI_API_KEY, model=CFG.AI_MODEL;
-    if(CFG.AI_PROVIDER==='anthropic'){
+    if(CFG.AI_PROVIDER==='grok'){
+      const r=await fetch('https://api.x.ai/v1/chat/completions',{
+        method:'POST',
+        headers:{'content-type':'application/json','authorization':'Bearer '+key},
+        body:JSON.stringify({model:model||'grok-4.3',max_tokens:400,messages:[{role:'system',content:system},{role:'user',content:user}]})
+      });
+      if(!r.ok)throw new Error('grok '+r.status+' '+(await r.text()).slice(0,200));
+      const j=await r.json();return j.choices?.[0]?.message?.content||'';
+    }else if(CFG.AI_PROVIDER==='anthropic'){
       const r=await fetch('https://api.anthropic.com/v1/messages',{
         method:'POST',
         headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
@@ -772,7 +781,8 @@
     if(!CFG.AI_API_KEY){renderBrief();return;}
     if(_aiBriefRan)return; _aiBriefRan=true;
     const card=document.getElementById('briefCard');
-    card.innerHTML=`${briefTitle}<div class="brief">🤖 ${CFG.AI_PROVIDER==='anthropic'?'Claude':'GPT'} が生成中…</div>`;
+    const providerLabel = CFG.AI_PROVIDER==='grok' ? 'Grok' : (CFG.AI_PROVIDER==='anthropic' ? 'Claude' : 'GPT');
+    card.innerHTML=`${briefTitle}<div class="brief">🤖 ${providerLabel} が生成中…</div>`;
     const name=CFG.USER_NAME||'研究者';
     const system=`あなたは${name}さん専属の研究・キャリアコーチAIです。博士進学・研究力向上を支援します。`
       +`提供データをもとに、今朝のパーソナルブリーフィングを日本語で簡潔に作成してください。`
@@ -840,11 +850,11 @@
     const s=getUserSettings();
     document.getElementById('setName').value=s.USER_NAME??(window.APP_CONFIG?.USER_NAME||'');
     document.getElementById('setCity').value=s.DEFAULT_CITY??(window.APP_CONFIG?.DEFAULT_CITY||'Atsugi');
-    document.getElementById('setProvider').value=s.AI_PROVIDER||CFG.AI_PROVIDER||'anthropic';
-    document.getElementById('setModel').value=s.AI_MODEL||CFG.AI_MODEL||'claude-3-5-haiku-20241022';
+    document.getElementById('setProvider').value=s.AI_PROVIDER||CFG.AI_PROVIDER||'grok';
+    document.getElementById('setModel').value=s.AI_MODEL||CFG.AI_MODEL||'grok-4.3';
     document.getElementById('setGid').value=s.GOOGLE_CLIENT_ID??(window.APP_CONFIG?.GOOGLE_CLIENT_ID||'');
     const keyInput=document.getElementById('setKey');
-    keyInput.value=''; keyInput.placeholder=(s.AI_API_KEY)?'●●●●● 保存済み（変更する場合のみ入力）':'sk-ant-...';
+    keyInput.value=''; keyInput.placeholder=(s.AI_API_KEY)?'●●●●● 保存済み（変更する場合のみ入力）':'gsk_...';
     document.getElementById('settingsModal').classList.add('show');
   }
   function closeSettings(){document.getElementById('settingsModal').classList.remove('show');}
@@ -853,7 +863,7 @@
       USER_NAME:document.getElementById('setName').value.trim(),
       DEFAULT_CITY:document.getElementById('setCity').value.trim()||'Atsugi',
       AI_PROVIDER:document.getElementById('setProvider').value,
-      AI_MODEL:document.getElementById('setModel').value.trim()||'claude-3-5-haiku-20241022',
+      AI_MODEL:document.getElementById('setModel').value.trim()||'grok-4.3',
       GOOGLE_CLIENT_ID:document.getElementById('setGid').value.trim(),
     };
     const k=document.getElementById('setKey').value.trim();
