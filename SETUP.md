@@ -107,3 +107,59 @@ morning_dashboard/
 ├── make_icons.py   # アイコン生成スクリプト（再生成用）
 └── SETUP.md        # この手順書
 ```
+
+---
+
+## Vercelで公開（スマホ向け本番運用）
+
+1. [Vercel](https://vercel.com/) に GitHub 連携でログイン
+2. `s1280061/morning-research-os` を `Import Project`
+3. Framework Preset は `Other`（静的サイト）
+4. Build Command は空欄、Output Directory も空欄（ルート配信）
+5. Deploy
+
+このリポジトリには `vercel.json` を追加済みなので、`index.html` ルート配信とPWA関連ヘッダはそのまま有効になります。
+
+### Google連携の本番ドメイン設定（重要）
+Google Calendar / Gmail / Tasks を本番で使うには、Google Cloud Console の OAuth クライアント設定で以下を追加してください。
+
+- Authorized JavaScript origins: `https://<your-vercel-domain>`
+- 例: `https://morning-research-os.vercel.app`
+
+`localhost` だけ登録している状態だと、本番URLでは Google 連携が失敗します。
+
+---
+
+## API実装チェック結果
+
+### 1) Weather API
+- 実装: あり
+- 取得先: `wttr.in`（失敗時は `allorigins/corsproxy/codetabs` 経由フォールバック）
+- 判定: 実装済み（外部無料API依存のため、プロキシ側障害時は失敗する可能性あり）
+
+### 2) Market API
+- 実装: あり
+- 取得先: Yahoo Finance chart API（プロキシ経由）
+- 判定: 実装済み
+
+### 3) Tasks API
+- 実装: あり
+- 取得先: Google Tasks API（OAuth）
+- フォールバック: 未連携時は LocalStorage タスク管理
+- 判定: 実装済み
+
+### 4) Gmail API
+- 実装: あり
+- 取得先: Gmail API（OAuth）
+- 判定: 実装済み
+
+### 5) Google Calendar API
+- 実装: あり
+- 取得先: Google Calendar API（OAuth）
+- 判定: 実装済み
+
+### 動かない時の最短確認
+- `config.js` の `GOOGLE_CLIENT_ID` が正しいか
+- Google Cloud で `Calendar API / Gmail API / Tasks API` が有効化済みか
+- OAuth consent screen の Test users に利用Googleアカウントを追加済みか
+- OAuth クライアントの Authorized JavaScript origins に Vercel ドメインを追加済みか
