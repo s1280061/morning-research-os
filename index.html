@@ -561,12 +561,48 @@
   }
 
   /* ── News ────────────────────────────────────────── */
+  let _latestNewsItems=[];
+  let _latestResearchItems=[];
+  function trendAdviceHtml(){
+    const n=_latestNewsItems.slice(0,2).map(x=>x.title).filter(Boolean).join(' / ');
+    const r=_latestResearchItems.slice(0,2).map(x=>x.title).filter(Boolean).join(' / ');
+    const tips=[];
+    if(n)tips.push(`News: ${esc(n.slice(0,120))}`);
+    if(r)tips.push(`Research: ${esc(r.slice(0,120))}`);
+    tips.push('Advice: Focus on one concrete output in the next 60 minutes.');
+    return `<div class="brief" style="margin-top:10px">${tips.join('<br>')}</div>`;
+  }
+  async function trendAdviceHtmlAuto(){
+    if(!CFG.AI_API_KEY) return trendAdviceHtml();
+    try{
+      const news=_latestNewsItems.slice(0,3).map(x=>x.title).filter(Boolean).join('\n');
+      const papers=_latestResearchItems.slice(0,3).map(x=>x.title).filter(Boolean).join('\n');
+      const system='You are a concise daily strategy coach for a research professional. Output 2 short bullet points in Japanese.';
+      const user=`今日のニュース:\n${news||'なし'}\n\n今日の研究トピック:\n${papers||'なし'}\n\n今日やるべき行動を2つ、短く具体的に提案してください。`;
+      const t=await callLLM(system,user);
+      return `<div class="brief" style="margin-top:10px">${esc(t).replace(/\n/g,'<br>')}</div>`;
+    }catch(_){
+      return trendAdviceHtml();
+    }
+  }
   async function loadNews(){
     const card=document.getElementById('newsCard');
     try{
-      const xmlStr=await fetchViaProxy(CFG.NEWS_RSS||'https://www.nhk.or.jp/rss/news/cat0.xml',true);
-      const xml=new DOMParser().parseFromString(xmlStr,'text/xml');
-      const items=[...xml.querySelectorAll('item')].slice(0,CFG.NEWS_MAX||5);
+      const feeds=[
+        CFG.NEWS_RSS||'https://www.nhk.or.jp/rss/news/cat0.xml',
+        'https://news.yahoo.co.jp/rss/topics/top-picks.xml',
+        'https://www3.nhk.or.jp/rss/news/cat0.xml'
+      ];
+      let items=[];
+      for(const feed of feeds){
+        try{
+          const xmlStr=await fetchViaProxy(feed,true);
+          const xml=new DOMParser().parseFromString(xmlStr,'text/xml');
+          if(xml.querySelector('parsererror'))continue;
+          const parsed=[...xml.querySelectorAll('item')].slice(0,CFG.NEWS_MAX||5);
+          if(parsed.length){items=parsed;break;}
+        }catch(_){}
+      }
       if(!items.length)throw 0;
       const html=items.map(it=>{
         const t=it.querySelector('title')?.textContent||'';
@@ -578,7 +614,8 @@
           <a class="nt" href="${l}" target="_blank" rel="noopener">${esc(t)}</a>
           <span class="ntm">${when}</span></li>`;
       }).join('');
-      card.innerHTML=`<div class="ctitle"><span class="ico">⚡</span>News Flash<span class="more" onclick="loadNews()">↻ もっと見る</span></div><ul class="nlist">${html}</ul>`;
+      _latestNewsItems=items.map(it=>({title:it.querySelector('title')?.textContent||''}));
+      card.innerHTML=`<div class="ctitle"><span class="ico">⚡</span>News Flash<span class="more" onclick="loadNews()">↻ もっと見る</span></div><ul class="nlist">${html}</ul>${await trendAdviceHtmlAuto()}`;
     }catch(_){
       card.innerHTML=`<div class="ctitle"><span class="ico">⚡</span>News Flash</div><div class="err">ニュースの取得に失敗しました。</div>`;
     }
@@ -646,7 +683,8 @@
           <a class="rt" href="${link}" target="_blank" rel="noopener">${esc(t)}</a>
           <div class="rd">${esc(sum)}…</div></div>`;
       }).join('');
-      card.innerHTML=`<div class="ctitle"><span class="ico">🛰</span>Research Radar<span class="more" onclick="loadResearch()">↻</span></div>${html}`;
+      _latestResearchItems=entries.map(e=>({title:(e.querySelector('title')?.textContent||'').replace(/\s+/g,' ').trim()}));
+      card.innerHTML=`<div class="ctitle"><span class="ico">🛰</span>Research Radar<span class="more" onclick="loadResearch()">↻</span></div>${html}${await trendAdviceHtmlAuto()}`;
     }catch(_){
       card.innerHTML=`<div class="ctitle"><span class="ico">🛰</span>Research Radar<span class="more" onclick="loadResearch()">↻</span></div><div class="err">論文の取得に失敗しました。時間を置いて再試行してください。</div>`;
     }
@@ -969,6 +1007,9 @@
   }
 
   renderLocalTasks(); renderCoach(); loadAll(); updateNotifyBtn(); scheduleNotify();
+  setInterval(()=>{try{loadNews();}catch(_){}}, 10*60*1000);
+  setInterval(()=>{try{loadResearch();}catch(_){}}, 20*60*1000);
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){try{loadNews();loadResearch();}catch(_){}}});
 
   (function wait(n=0){
     if(window.google?.accounts?.oauth2){initGoogle();}
