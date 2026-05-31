@@ -11,7 +11,16 @@ window.APP_CONFIG = {
 
   // ── キャリアのペルソナ（Career Radar の専用アドバイス生成に使用） ──
   // LinkedIn等の自分のプロフィールを要約して記入。AIがこれを元に個別助言します。
-  USER_PERSONA: '氏名: Kaito Asai（浅井海斗）。LinkedIn: jp.linkedin.com/in/kaito-asai-267671393。自動運転・AI研究者を志す若手エンジニア。博士進学を視野。関心領域: 自動運転(end-to-end / Vision-Language Model)、HCI・eHMI(歩車間インタラクション)、認識・行動予測。現在はCARLA上でのジェスチャー制御eHMIなど研究プロトタイプを開発中。目標: Tier IV / Wayve / Waabi / NVIDIA / Zoox 等での研究職・リサーチエンジニア。',
+  USER_PERSONA: [
+    '氏名: Kaito Asai（浅井海斗）。LinkedIn: jp.linkedin.com/in/kaito-asai-267671393。',
+    '現職: 日産自動車 AD/ADAS開発エンジニア。学歴: 九州大学大学院 修士（自動車工学／情報・制御システム／知能モビリティ／自動運転）。',
+    '専門分野: ADAS・自動運転、Human-AI Interaction、Vision-Language Model(VLM)、SDV、HMI/eHMI、協調知能(Cooperative Intelligence)、駐車システム。',
+    '研究の中心: 運転シーン理解と運転助言のためのVLM。テーマ=リスク認識型運転支援/運転シーン理解/Explainable AI/マルチモーダル推論。',
+    'プロジェクト: ①VLMベース運転アドバイス分析(LLaVA・運転データセット・定量評価, 説明可能性と信頼性向上) ②RiSA-V2X(路側機×車両のAI協調, RSU知覚/協調シーン理解/リスク要約/V2X知能共有) ③eHMI研究(地面投影/意図可視化/ドライバージェスチャー→車両通信/AV交渉インタフェース) ④駐車知能(駐車枠検出/占有予測/VLMベース駐車推薦)。',
+    '技術: PyTorch/Deep Learning/Computer Vision/VLM/Multimodal AI、CARLA、Python/Git/Docker/Linux/LangGraph/Claude Code、科学論文執筆/実験計画/定量分析/学会発表。',
+    '実績: IEEE BigData ポスター発表、IEICE ITS 発表（VLMベース運転助言システム）。',
+    '長期目標: 自動運転研究/Human-Centered AI/V2X・A2X知能/国際研究連携/博士号(PhD)/Research Scientist・Research Engineer。'
+  ].join(' '),
 
   // ── AI Briefing 用 LLM API ───────────────────────────────
   // OpenAI なら 'openai'、Anthropic(Claude) なら 'anthropic'
@@ -46,8 +55,8 @@ window.APP_CONFIG = {
   RESEARCH_MAX: 6,                 // 表示する論文数（重要度順）
   ENABLE_SEMANTIC_SCHOLAR: true,   // 引用数で重要度を補強（任意・失敗時は無視）
 
-  // ── Career Radar（Phase 2 で使用予定。今は未使用） ────────
-  WATCH_COMPANIES: ['Tier IV', 'Wayve', 'Waabi', 'NVIDIA', 'Zoox'],
+  // ── Career Radar（注目企業。各社まとめ＋本人ペルソナ向け助言を生成） ──
+  WATCH_COMPANIES: ['Tesla', 'Tier IV', 'Turing', '日産自動車', 'Honda', 'Toyota', 'AUMOVIO', 'Bosch', 'Valeo', 'Mobileye'],
 
   // ── GitHub Activity（Phase 2 で使用予定） ────────────────
   GITHUB_USERNAME: '',

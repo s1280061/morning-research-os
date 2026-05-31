@@ -215,6 +215,8 @@
       border:1px solid rgba(124,140,255,.25);}
     .trend-h{font-size:12px;font-weight:800;color:var(--violet);letter-spacing:.3px;margin-bottom:8px;display:flex;align-items:center;gap:6px;}
     .trend-box .brief{font-size:12.5px;line-height:1.65;}
+    .md-h{font-size:12px;font-weight:800;color:var(--blue);margin:10px 0 5px;letter-spacing:.3px;}
+    .md-h:first-child{margin-top:0;}
 
     .jitem{display:flex;gap:11px;align-items:center;padding:10px 0;border-top:1px solid var(--line2);}
     .jitem:first-of-type{border-top:none;padding-top:2px;}
@@ -626,9 +628,12 @@
   // 簡易Markdown→HTML（太字・箇条書きのみ。XSS対策にescしてから変換）
   function mdLite(t){
     return esc(t)
+      .replace(/^#{1,6}\s+(.+)$/gm,'<div class="md-h">$1</div>')
       .replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>')
       .replace(/^[\-\*]\s+/gm,'・')
-      .replace(/\n+/g,'<br>');
+      .replace(/\n+/g,'<br>')
+      .replace(/<br>(<div class="md-h">)/g,'$1')
+      .replace(/(<\/div>)<br>/g,'$1');
   }
 
   async function loadNews(){
@@ -756,33 +761,33 @@
   function timeAgo(d){const m=Math.floor((Date.now()-d)/60000);if(m<60)return m+'m ago';const h=Math.floor(m/60);if(h<24)return h+'h ago';return Math.floor(h/24)+'d ago';}
 
   /* ── Career Radar (watched companies) ────────────── */
+  const DEFAULT_COMPANIES=['Tesla','Tier IV','Turing','日産自動車','Honda','Toyota','AUMOVIO','Bosch','Valeo','Mobileye'];
   function renderCareer(){
     const card=document.getElementById('careerCard');
-    const cos=CFG.WATCH_COMPANIES||['Tier IV','Wayve','Waabi','NVIDIA','Zoox'];
-    const palette=['#6c5ce7','#0984e3','#00b894','#e17055','#d63031','#0a3d62'];
-    const roles=['Research Engineer','ML Engineer','Research Scientist','Perception Engineer','Autonomy Engineer'];
-    const html=cos.slice(0,5).map((co,i)=>{
-      const q=encodeURIComponent(co+' careers autonomous driving');
+    const cos=CFG.WATCH_COMPANIES||DEFAULT_COMPANIES;
+    const palette=['#e82127','#6c5ce7','#111827','#c3002f','#cc0000','#eb0a1e','#ff6a13','#ee0000','#0098d8','#00b894'];
+    const html=cos.map((co,i)=>{
+      const q=encodeURIComponent(co+' autonomous driving careers');
       return `<a class="jitem" href="https://www.google.com/search?q=${q}" target="_blank" rel="noopener">
         <div class="jlogo" style="background:${palette[i%palette.length]}">${esc(co[0])}</div>
-        <div class="jbody"><div class="jco">${esc(co)}</div><div class="jrole">${roles[i%roles.length]} — 採用情報を検索</div></div>
+        <div class="jbody"><div class="jco">${esc(co)}</div><div class="jrole">AD/ADAS 採用・技術動向を検索</div></div>
         <span class="jnew">OPEN</span></a>`;
     }).join('');
     card.innerHTML=`<div class="ctitle"><span class="ico">💼</span>Career Radar</div>${html}
-      <div style="font-size:10.5px;color:var(--faint);margin-top:8px">注目企業の採用ページを検索します</div>
-      <div class="trend-box" style="margin-top:12px"><div class="trend-h">🧑‍🚀 あなた専用キャリアアドバイス</div>
-        <div id="careerAdviceSlot"><div class="brief">${CFG.AI_API_KEY?'あなたのプロフィールを分析中…':'⚙️設定でAIキーを入れると、あなた専用の助言が出ます。'}</div></div></div>`;
+      <div class="trend-box" style="margin-top:12px"><div class="trend-h">🏢 企業別まとめ＆あなた専用アドバイス</div>
+        <div id="careerAdviceSlot"><div class="brief">${CFG.AI_API_KEY?'各社の動向とあなたのプロフィールを分析中…':'⚙️設定でAIキーを入れると、各社まとめ＋あなた専用の助言が出ます。'}</div></div></div>`;
     if(CFG.AI_API_KEY) careerAdviceAuto().then(html=>{const s=document.getElementById('careerAdviceSlot');if(s)s.innerHTML=html;}).catch(()=>{});
   }
-  // ペルソナ＋注目企業＋最新研究動向から、本人専用のキャリア助言を生成
+  // 各社まとめ ＋ ペルソナ向けキャリア助言を生成
   async function careerAdviceAuto(){
     try{
       const persona=CFG.USER_PERSONA||(CFG.USER_NAME?`${CFG.USER_NAME}（自動運転・AI研究志望）`:'自動運転・AI研究を志す若手エンジニア');
-      const cos=(CFG.WATCH_COMPANIES||[]).join(', ');
+      const cos=(CFG.WATCH_COMPANIES||DEFAULT_COMPANIES);
       const papers=_latestResearchItems.slice(0,4).map(x=>x.title).filter(Boolean).join('\n')||'（未取得）';
-      const system='あなたは自動運転・AI業界に精通したキャリアコーチです。対象者本人のプロフィールに完全に合わせ、具体的で実行可能な助言を日本語で出します。一般論は避け、本人の関心領域と志望企業に紐づけること。各項目1〜2文、文頭に絵文字。前置き・締めの挨拶は不要。';
-      const user=`【対象者プロフィール】\n${persona}\n\n【志望企業】\n${cos}\n\n【今日の研究トレンド（最新論文）】\n${papers}\n\n上記を踏まえ、次の3点を出力:\n🎯 今週の一手: 志望企業に近づくため今週やるべき具体行動を1つ\n🧩 埋めるべきギャップ: 志望職に対して本人に不足しがちなスキル/実績と補い方\n📨 アピール戦略: 志望企業の選考で効くポートフォリオ/発信の見せ方`;
-      const t=await callLLM(system,user);
+      const facts='【企業の正確な前提（混同しないこと）】Tesla=ビジョン中心のEnd-to-End FSD、Dojo。Tier IV=日本、オープンソースAutowareの中心企業(Apolloではない)。Turing=日本のスタートアップ、生成AI/VLMによる完全自動運転(レベル5)を標榜。日産自動車=対象者の現職、ProPILOT/SDV/eHMI。Honda=Honda SENSING、レベル3 Legend実績。Toyota=Woven by Toyota、Arene OS、安全。AUMOVIO=Continentalから2025年分社した車載エレクトロニクス/ADAS企業。Bosch=Tier1大手、レーダ/カメラ/ADAS ECU。Valeo=仏Tier1、LiDAR SCALAや駐車/周辺監視に強い。Mobileye=Intel系、EyeQ SoCとREM/視覚ベース自動運転。';
+      const system='あなたは自動運転(AD/ADAS)業界とAI研究キャリアに精通したアドバイザーです。各社の自動運転戦略を正確かつ簡潔にまとめ、対象者本人のプロフィールに完全に合わせた実行可能な助言を日本語で出します。事実を捏造せず、与えた前提に従うこと。一般論や挨拶は不要。Markdownの**太字**と「- 」箇条書きのみ使用。';
+      const user=`【対象者プロフィール】\n${persona}\n\n${facts}\n\n【対象企業】\n${cos.join(', ')}\n\n【今日の研究トレンド（最新論文）】\n${papers}\n\n次の構成で出力してください:\n\n## 企業別まとめ\n各社を1行ずつ「**社名**: AD/ADASの注力点・技術的特徴（1文）→ あなたの強み(VLM/eHMI/V2X/駐車/日産での実務)を踏まえた狙い方(1文)」。${cos.length}社すべて。\n\n## あなたへの総合キャリア戦略\n- 🎯 直近の一手: 今の日産での立ち位置を活かして今週着手すべき具体行動\n- 🧩 埋めるべきギャップ: 海外トップ研究職/PhDに向けて不足しがちな点と補い方\n- 📨 アピール戦略: 選考やコネクションで効くポートフォリオ・発信の見せ方\n- 🌏 中長期: PhD・国際研究連携・Research Scientist到達への筋道`;
+      const t=await callLLM(system,user,1500);
       return `<div class="brief">${mdLite(t)}</div>`;
     }catch(e){
       return `<div class="brief" style="color:var(--faint)">アドバイス生成に失敗しました（${esc(String(e.message||e)).slice(0,60)}）。</div>`;
@@ -819,7 +824,7 @@
     return lines.join('\n');
   }
 
-  async function callLLM(system, user){
+  async function callLLM(system, user, maxTokens=400){
     const key=CFG.AI_API_KEY, model=CFG.AI_MODEL;
     const looksLikeGroqKey = /^gsk_/i.test(key||'');
     const useGroq = CFG.AI_PROVIDER==='groq' || looksLikeGroqKey;
@@ -827,7 +832,7 @@
       const r=await fetch('https://api.groq.com/openai/v1/chat/completions',{
         method:'POST',
         headers:{'content-type':'application/json','authorization':'Bearer '+key},
-        body:JSON.stringify({model:model||'llama-3.3-70b-versatile',max_tokens:400,messages:[{role:'system',content:system},{role:'user',content:user}]})
+        body:JSON.stringify({model:model||'llama-3.3-70b-versatile',max_tokens:maxTokens,messages:[{role:'system',content:system},{role:'user',content:user}]})
       });
       if(!r.ok)throw new Error('groq '+r.status+' '+(await r.text()).slice(0,200));
       const j=await r.json();return j.choices?.[0]?.message?.content||'';
@@ -835,7 +840,7 @@
       const r=await fetch('https://api.x.ai/v1/chat/completions',{
         method:'POST',
         headers:{'content-type':'application/json','authorization':'Bearer '+key},
-        body:JSON.stringify({model:model||'grok-4.3',max_tokens:400,messages:[{role:'system',content:system},{role:'user',content:user}]})
+        body:JSON.stringify({model:model||'grok-4.3',max_tokens:maxTokens,messages:[{role:'system',content:system},{role:'user',content:user}]})
       });
       if(!r.ok)throw new Error('grok '+r.status+' '+(await r.text()).slice(0,200));
       const j=await r.json();return j.choices?.[0]?.message?.content||'';
@@ -843,7 +848,7 @@
       const r=await fetch('https://api.anthropic.com/v1/messages',{
         method:'POST',
         headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-        body:JSON.stringify({model,max_tokens:400,system,messages:[{role:'user',content:user}]})
+        body:JSON.stringify({model,max_tokens:maxTokens,system,messages:[{role:'user',content:user}]})
       });
       if(!r.ok)throw new Error('anthropic '+r.status+' '+(await r.text()).slice(0,200));
       const j=await r.json();return j.content.map(c=>c.text||'').join('');
@@ -851,7 +856,7 @@
       const r=await fetch('https://api.openai.com/v1/chat/completions',{
         method:'POST',
         headers:{'content-type':'application/json','authorization':'Bearer '+key},
-        body:JSON.stringify({model,max_tokens:400,messages:[{role:'system',content:system},{role:'user',content:user}]})
+        body:JSON.stringify({model,max_tokens:maxTokens,messages:[{role:'system',content:system},{role:'user',content:user}]})
       });
       if(!r.ok)throw new Error('openai '+r.status+' '+(await r.text()).slice(0,200));
       const j=await r.json();return j.choices[0].message.content;
