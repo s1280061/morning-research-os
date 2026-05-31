@@ -410,6 +410,7 @@
     <label class="fld">プロバイダ
       <select id="setProvider">
         <option value="grok">xAI (Grok)</option>
+        <option value="groq">Groq (Llama/Mixtral)</option>
         <option value="openai">OpenAI (GPT)</option>
         <option value="anthropic">Anthropic (Claude)</option>
       </select>
@@ -749,7 +750,17 @@
 
   async function callLLM(system, user){
     const key=CFG.AI_API_KEY, model=CFG.AI_MODEL;
-    if(CFG.AI_PROVIDER==='grok'){
+    const looksLikeGroqKey = /^gsk_/i.test(key||'');
+    const useGroq = CFG.AI_PROVIDER==='groq' || looksLikeGroqKey;
+    if(useGroq){
+      const r=await fetch('https://api.groq.com/openai/v1/chat/completions',{
+        method:'POST',
+        headers:{'content-type':'application/json','authorization':'Bearer '+key},
+        body:JSON.stringify({model:model||'llama-3.3-70b-versatile',max_tokens:400,messages:[{role:'system',content:system},{role:'user',content:user}]})
+      });
+      if(!r.ok)throw new Error('groq '+r.status+' '+(await r.text()).slice(0,200));
+      const j=await r.json();return j.choices?.[0]?.message?.content||'';
+    }else if(CFG.AI_PROVIDER==='grok'){
       const r=await fetch('https://api.x.ai/v1/chat/completions',{
         method:'POST',
         headers:{'content-type':'application/json','authorization':'Bearer '+key},
@@ -781,7 +792,9 @@
     if(!CFG.AI_API_KEY){renderBrief();return;}
     if(_aiBriefRan)return; _aiBriefRan=true;
     const card=document.getElementById('briefCard');
-    const providerLabel = CFG.AI_PROVIDER==='grok' ? 'Grok' : (CFG.AI_PROVIDER==='anthropic' ? 'Claude' : 'GPT');
+    const providerLabel =
+      (/^gsk_/i.test(CFG.AI_API_KEY||'') || CFG.AI_PROVIDER==='groq') ? 'Groq' :
+      (CFG.AI_PROVIDER==='grok' ? 'Grok' : (CFG.AI_PROVIDER==='anthropic' ? 'Claude' : 'GPT'));
     card.innerHTML=`${briefTitle}<div class="brief">🤖 ${providerLabel} が生成中…</div>`;
     const name=CFG.USER_NAME||'研究者';
     const system=`あなたは${name}さん専属の研究・キャリアコーチAIです。博士進学・研究力向上を支援します。`
