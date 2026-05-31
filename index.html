@@ -178,6 +178,8 @@
     .nitem .nt{flex:1;font-size:13px;color:var(--ink2);line-height:1.45;}
     .nitem .nt:hover{color:var(--blue);}
     .nitem .ntm{font-size:11px;color:var(--faint);font-weight:600;white-space:nowrap;}
+    .news-sub{font-size:11px;font-weight:800;color:var(--sub);letter-spacing:.5px;margin:12px 0 2px;}
+    .news-sub:first-child{margin-top:2px;}
 
     /* Gmail big */
     .mail-big{text-align:center;padding:6px 0;}
@@ -595,7 +597,7 @@
       const papers=_latestResearchItems.slice(0,3).map(x=>x.title).filter(Boolean).join('\n');
       const system='You are a concise daily strategy coach for a research professional. Output 2 short bullet points in Japanese.';
       const user=`今日のニュース:\n${news||'なし'}\n\n今日の研究トピック:\n${papers||'なし'}\n\n今日やるべき行動を2つ、短く具体的に提案してください。`;
-      const t=await callLLM(system,user);
+      const t=await callLLMQueued(system,user);
       return `<div class="brief" style="margin-top:10px">${esc(t).replace(/\n/g,'<br>')}</div>`;
     }catch(_){
       return trendAdviceHtml();
@@ -623,7 +625,7 @@
       if(!papers) return researchTrendsLocal();
       const system='あなたは自動運転・AI分野に精通した研究アナリストです。与えられた最新arXiv論文タイトル群から研究動向を読み解き、日本語で簡潔にまとめます。各項目は1〜2文、文頭に絵文字。前置き・締めは不要。';
       const user=`最新の研究論文タイトル:\n${papers}\n\n以下の3点を出力してください:\n🔥 今のトレンド: 現在ホットな研究テーマ・手法\n🌊 背景にある流れ: なぜ今それが注目されているか\n📈 今後の予測: 半年〜1年先に流行りそうなテーマを根拠とともに予測`;
-      const t=await callLLM(system,user);
+      const t=await callLLMQueued(system,user);
       return `<div class="brief">${mdLite(t)}</div>`;
     }catch(e){
       return researchTrendsLocal();
@@ -643,40 +645,72 @@
   async function loadNews(){
     const card=document.getElementById('newsCard');
     try{
-      const feeds=[
+      const jpFeeds=[
         CFG.NEWS_RSS||'https://www.nhk.or.jp/rss/news/cat0.xml',
         'https://news.yahoo.co.jp/rss/topics/top-picks.xml',
         'https://www3.nhk.or.jp/rss/news/cat0.xml'
       ];
-      let items=[];
-      for(const feed of feeds){
-        try{
-          const xmlStr=await fetchViaProxy(feed,true);
-          const xml=new DOMParser().parseFromString(xmlStr,'text/xml');
-          if(xml.querySelector('parsererror'))continue;
-          const parsed=[...xml.querySelectorAll('item')].slice(0,CFG.NEWS_MAX||5);
-          if(parsed.length){items=parsed;break;}
-        }catch(_){}
-      }
-      if(!items.length)throw 0;
-      const html=items.map(it=>{
-        const t=it.querySelector('title')?.textContent||'';
-        const l=it.querySelector('link')?.textContent||'#';
-        const pub=it.querySelector('pubDate')?.textContent;
-        const d=pub?new Date(pub):null;
-        const when=d?`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`:'';
-        return `<li class="nitem"><span class="dot"></span>
-          <a class="nt" href="${l}" target="_blank" rel="noopener">${esc(t)}</a>
-          <span class="ntm">${when}</span></li>`;
-      }).join('');
-      _latestNewsItems=items.map(it=>({title:it.querySelector('title')?.textContent||''}));
-      card.innerHTML=`<div class="ctitle"><span class="ico">⚡</span>News Flash</div><ul class="nlist">${html}</ul><div id="newsAdviceSlot">${trendAdviceHtml()}</div>`;
-      trendAdviceHtmlAuto().then(advice=>{
-        const slot=document.getElementById('newsAdviceSlot');
-        if(slot) slot.outerHTML=advice;
-      }).catch(()=>{});
+      const worldFeeds=CFG.WORLD_NEWS_RSS||[
+        'https://feeds.bbci.co.uk/news/world/rss.xml',
+        'https://www.aljazeera.com/xml/rss/all.xml'
+      ];
+      const max=CFG.NEWS_MAX||5;
+      const [jp,world]=await Promise.all([fetchFeed(jpFeeds,max),fetchFeed(worldFeeds,max)]);
+      if(!jp.length && !world.length)throw 0;
+      const liOf=it=>`<li class="nitem"><span class="dot"></span>
+        <a class="nt" href="${it.link}" target="_blank" rel="noopener">${esc(it.title)}</a>
+        <span class="ntm">${it.when}</span></li>`;
+      const section=(label,arr)=> arr.length
+        ? `<div class="news-sub">${label}</div><ul class="nlist">${arr.map(liOf).join('')}</ul>` : '';
+      _latestNewsItems=[...jp.map(x=>({title:x.title,region:'国内'})),...world.map(x=>({title:x.title,region:'世界'}))];
+      card.innerHTML=`<div class="ctitle"><span class="ico">⚡</span>News Flash<span class="more" onclick="loadNews()">↻</span></div>`
+        +section('🇯🇵 国内',jp)+section('🌍 世界',world)
+        +`<div class="trend-box" style="margin-top:12px"><div class="trend-h">📰 最近のニュースの傾向</div>`
+        +`<div id="newsTrendSlot"><div class="brief">${CFG.AI_API_KEY?'傾向を分析中…':'⚙️設定でAIキーを入れると傾向の要約が出ます。'}</div></div></div>`;
+      newsTrendAuto().then(h=>{const s=document.getElementById('newsTrendSlot');if(s)s.innerHTML=h;}).catch(()=>{});
     }catch(_){
       card.innerHTML=`<div class="ctitle"><span class="ico">⚡</span>News Flash</div><div class="err">ニュースの取得に失敗しました。</div>`;
+    }
+  }
+  // RSSフィード群を順に試し、最初に成功したものを {title,link,when} 配列で返す
+  async function fetchFeed(feeds,max){
+    for(const feed of feeds){
+      try{
+        const xmlStr=await fetchViaProxy(feed,true);
+        const xml=new DOMParser().parseFromString(xmlStr,'text/xml');
+        if(xml.querySelector('parsererror'))continue;
+        const nodes=[...xml.querySelectorAll('item, entry')].slice(0,max);
+        if(!nodes.length)continue;
+        return nodes.map(it=>{
+          const title=(it.querySelector('title')?.textContent||'').replace(/\s+/g,' ').trim();
+          const linkEl=it.querySelector('link');
+          const link=linkEl?.textContent?.trim()||linkEl?.getAttribute('href')||'#';
+          const pub=it.querySelector('pubDate, published, updated')?.textContent;
+          const d=pub?new Date(pub):null;
+          const when=d&&!isNaN(d)?`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`:'';
+          return {title,link,when};
+        });
+      }catch(_){}
+    }
+    return [];
+  }
+  // 最近のニュースの傾向を要約（国内＋世界）
+  function newsTrendLocal(){
+    const t=_latestNewsItems.map(x=>x.title).filter(Boolean).slice(0,4).join(' / ');
+    return `<div class="brief">${t?esc(t):'ニュースを取得してから傾向を要約します。'}<br><span style="color:var(--faint);font-size:11px">※ AIキー設定で傾向の自然文要約になります</span></div>`;
+  }
+  async function newsTrendAuto(){
+    if(!CFG.AI_API_KEY) return newsTrendLocal();
+    try{
+      const jp=_latestNewsItems.filter(x=>x.region==='国内').map(x=>'・'+x.title).join('\n')||'なし';
+      const world=_latestNewsItems.filter(x=>x.region==='世界').map(x=>'・'+x.title).join('\n')||'なし';
+      if(jp==='なし'&&world==='なし')return newsTrendLocal();
+      const system='あなたは国際情勢と国内ニュースに詳しいアナリストです。与えられた見出しから「最近どうなっているか」の傾向を日本語で簡潔にまとめます。個別記事の羅列ではなく、共通する流れ・テーマを抽出。各項目1〜2文、文頭に絵文字。前置き・締めは不要。';
+      const user=`【国内の見出し】\n${jp}\n\n【世界の見出し】\n${world}\n\n次の3点を出力:\n🇯🇵 国内の傾向: 今の日本の主要な流れ\n🌍 世界の傾向: 国際的に注目されている動き\n🔭 注目ポイント: 今後数日〜数週間で気をつけて見るべきこと`;
+      const t=await callLLMQueued(system,user,500);
+      return `<div class="brief">${mdLite(t)}</div>`;
+    }catch(e){
+      return newsTrendLocal();
     }
   }
 
@@ -791,7 +825,7 @@
       const facts='【企業の正確な前提（混同しないこと）】Tesla=ビジョン中心のEnd-to-End FSD、Dojo。Tier IV=日本、オープンソースAutowareの中心企業(Apolloではない)。Turing=日本のスタートアップ、生成AI/VLMによる完全自動運転(レベル5)を標榜。日産自動車=対象者の現職、ProPILOT/SDV/eHMI。Honda=Honda SENSING、レベル3 Legend実績。Toyota=Woven by Toyota、Arene OS、安全。AUMOVIO=Continentalから2025年分社した車載エレクトロニクス/ADAS企業。Bosch=Tier1大手、レーダ/カメラ/ADAS ECU。Valeo=仏Tier1、LiDAR SCALAや駐車/周辺監視に強い。Mobileye=Intel系、EyeQ SoCとREM/視覚ベース自動運転。';
       const system='あなたは自動運転(AD/ADAS)業界とAI研究キャリアに精通したアドバイザーです。各社の自動運転戦略を正確かつ簡潔にまとめ、対象者本人のプロフィールに完全に合わせた実行可能な助言を日本語で出します。事実を捏造せず、与えた前提に従うこと。一般論や挨拶は不要。Markdownの**太字**と「- 」箇条書きのみ使用。';
       const user=`【対象者プロフィール】\n${persona}\n\n${facts}\n\n【対象企業】\n${cos.join(', ')}\n\n【今日の研究トレンド（最新論文）】\n${papers}\n\n次の構成で出力してください:\n\n## 企業別まとめ\n各社を1行ずつ「**社名**: AD/ADASの注力点・技術的特徴（1文）→ あなたの強み(VLM/eHMI/V2X/駐車/日産での実務)を踏まえた狙い方(1文)」。${cos.length}社すべて。\n\n## あなたへの総合キャリア戦略\n- 🎯 直近の一手: 今の日産での立ち位置を活かして今週着手すべき具体行動\n- 🧩 埋めるべきギャップ: 海外トップ研究職/PhDに向けて不足しがちな点と補い方\n- 📨 アピール戦略: 選考やコネクションで効くポートフォリオ・発信の見せ方\n- 🌏 中長期: PhD・国際研究連携・Research Scientist到達への筋道`;
-      const t=await callLLM(system,user,1500);
+      const t=await callLLMQueued(system,user,1500);
       return `<div class="brief">${mdLite(t)}</div>`;
     }catch(e){
       return `<div class="brief" style="color:var(--faint)">アドバイス生成に失敗しました（${esc(String(e.message||e)).slice(0,60)}）。</div>`;
@@ -866,6 +900,19 @@
       const j=await r.json();return j.choices[0].message.content;
     }
   }
+  // LLM呼び出しを直列化＋429リトライ。複数カードの同時生成でレート制限に当たるのを防ぐ。
+  let _llmQueue=Promise.resolve();
+  function callLLMQueued(system,user,maxTokens=400){
+    const run=async()=>{
+      for(let i=0;i<3;i++){
+        try{return await callLLM(system,user,maxTokens);}
+        catch(e){const m=String(e&&e.message||e);if(/\b429\b/.test(m)&&i<2){await new Promise(r=>setTimeout(r,1200*(i+1)));continue;}throw e;}
+      }
+    };
+    const p=_llmQueue.then(run,run);
+    _llmQueue=p.catch(()=>{});
+    return p;
+  }
 
   let _aiBriefRan=false;
   async function generateAIBriefing(){
@@ -883,7 +930,7 @@
       +`箇条書き3〜4項目、各1行、絵文字を文頭に。前置き・締めの挨拶は不要。`;
     const user=`今日のデータ:\n${buildContext()}\n\n上記からブリーフィングを作成してください。`;
     try{
-      const txt=await callLLM(system,user);
+      const txt=await callLLMQueued(system,user);
       card.innerHTML=`${briefTitle}<div class="brief">${esc(txt).replace(/\n+/g,'<br>')}</div>`;
     }catch(e){
       card.innerHTML=`${briefTitle}<div class="brief">${localBrief()}</div>`

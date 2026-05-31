@@ -39,7 +39,11 @@ window.APP_CONFIG = {
   BRIEF_MINUTE: 55,
 
   // ニュースRSS（NHK 主要ニュース）
-  NEWS_RSS: 'https://www.nhk.or.jp/rss/news/cat0.xml',
+  NEWS_RSS: 'https://www.nhk.or.jp/rss/news/cat0.xml',  // 国内（NHK主要）
+  WORLD_NEWS_RSS: [                                      // 世界（BBC World / Al Jazeera）
+    'https://feeds.bbci.co.uk/news/world/rss.xml',
+    'https://www.aljazeera.com/xml/rss/all.xml'
+  ],
   NEWS_MAX: 5,
 
   // ── Research Radar ───────────────────────────────────────

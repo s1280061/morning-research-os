@@ -12,6 +12,7 @@ export default async function handler(req, res) {
     'query1.finance.yahoo.com', 'query2.finance.yahoo.com',
     'export.arxiv.org', 'arxiv.org',
     'www.nhk.or.jp', 'www3.nhk.or.jp', 'news.yahoo.co.jp',
+    'feeds.bbci.co.uk', 'bbci.co.uk', 'www.aljazeera.com', 'aljazeera.com',
     'api.semanticscholar.org', 'wttr.in',
   ];
   let host;
