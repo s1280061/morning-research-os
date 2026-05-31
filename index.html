@@ -210,6 +210,11 @@
     .ritem .rd{font-size:11.5px;color:var(--sub);line-height:1.45;}
     .ritem .rtm{font-size:10.5px;color:var(--faint);float:right;}
     .barL{border-left:3px solid var(--blue);padding-left:10px;}
+    .trend-box{margin-top:14px;padding:13px 14px;border-radius:var(--r-sm);
+      background:linear-gradient(135deg,rgba(124,140,255,.10),rgba(38,198,240,.08));
+      border:1px solid rgba(124,140,255,.25);}
+    .trend-h{font-size:12px;font-weight:800;color:var(--violet);letter-spacing:.3px;margin-bottom:8px;display:flex;align-items:center;gap:6px;}
+    .trend-box .brief{font-size:12.5px;line-height:1.65;}
 
     .jitem{display:flex;gap:11px;align-items:center;padding:10px 0;border-top:1px solid var(--line2);}
     .jitem:first-of-type{border-top:none;padding-top:2px;}
@@ -460,7 +465,6 @@
     const name = CFG.USER_NAME || 'Researcher';
     document.getElementById('userName').textContent = name;
     document.getElementById('headline').innerHTML = `${g} <span class="name">${esc(name)}</span> 👋`;
-    document.getElementById('userName').parentElement; // noop
   })();
   document.getElementById('cityInput').value = localStorage.getItem('city') || CFG.DEFAULT_CITY || 'Tokyo';
 
@@ -487,18 +491,22 @@
   let currentWeather=null;
   async function loadWeather(city){
     const card=document.getElementById('weatherCard');
+    // 既定都市なら座標で正確に取得し、表示は CITY_LABEL（例:厚木）に
+    const isDefault = city===(CFG.DEFAULT_CITY||'');
+    const queryCity = (isDefault && CFG.DEFAULT_COORDS) ? CFG.DEFAULT_COORDS : city;
     try{
       let d;
       try{
-        const res=await fetchT(`https://wttr.in/${encodeURIComponent(city)}?format=j1`,{},8000);
+        const res=await fetchT(`https://wttr.in/${encodeURIComponent(queryCity)}?format=j1`,{},8000);
         if(!res.ok)throw 0; d=await res.json();
       }catch(_){
-        d=await fetchViaProxy(`https://wttr.in/${encodeURIComponent(city)}?format=j1`);
+        d=await fetchViaProxy(`https://wttr.in/${encodeURIComponent(queryCity)}?format=j1`);
       }
       const c=d.current_condition[0], loc=d.nearest_area[0];
+      const locName=(isDefault && CFG.CITY_LABEL) ? CFG.CITY_LABEL : `${loc.areaName[0].value}, ${loc.country[0].value}`;
       const w={tempC:+c.temp_C,feels:+c.FeelsLikeC,humidity:c.humidity,windKph:c.windspeedKmph,
         desc:(c.lang_ja?c.lang_ja[0].value:c.weatherDesc[0].value),code:+c.weatherCode,
-        loc:`${loc.areaName[0].value}, ${loc.country[0].value}`};
+        loc:locName};
       currentWeather=w; renderOutfit(w); renderBrief();
       card.innerHTML=`<div class="ctitle"><span class="ico">🌤</span>天気</div>
         <div class="w-top">
@@ -587,6 +595,42 @@
       return trendAdviceHtml();
     }
   }
+
+  /* ── Research Trends 分析（現状の動向＋今後の流行予測） ── */
+  function researchTrendsLocal(){
+    const ts=_latestResearchItems.map(x=>x.title).filter(Boolean);
+    if(!ts.length) return '<div class="brief">論文を取得してから動向を分析します。</div>';
+    // 簡易キーワード頻度
+    const stop=new Set(['the','a','an','of','for','and','to','in','on','with','via','using','based','from','via','model','models','learning','deep','neural','network','networks']);
+    const freq={};
+    ts.join(' ').toLowerCase().replace(/[^a-z0-9\- ]/g,' ').split(/\s+/).forEach(w=>{if(w.length>=4&&!stop.has(w))freq[w]=(freq[w]||0)+1;});
+    const top=Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,6).map(x=>x[0]);
+    return `<div class="brief">
+      🔥 <b>今のトレンド</b>: ${esc(top.join(' / ')||'—')}<br>
+      📈 <b>今後の予測</b>: 上記キーワードの組み合わせ（特に上位2〜3語）が次の注目領域になりそうです。<br>
+      <span style="color:var(--faint);font-size:11px">※ AIキー設定でより精緻な動向予測になります</span></div>`;
+  }
+  async function researchTrendsAuto(){
+    if(!CFG.AI_API_KEY) return researchTrendsLocal();
+    try{
+      const papers=_latestResearchItems.slice(0,6).map((x,i)=>`${i+1}. ${x.title}`).filter(Boolean).join('\n');
+      if(!papers) return researchTrendsLocal();
+      const system='あなたは自動運転・AI分野に精通した研究アナリストです。与えられた最新arXiv論文タイトル群から研究動向を読み解き、日本語で簡潔にまとめます。各項目は1〜2文、文頭に絵文字。前置き・締めは不要。';
+      const user=`最新の研究論文タイトル:\n${papers}\n\n以下の3点を出力してください:\n🔥 今のトレンド: 現在ホットな研究テーマ・手法\n🌊 背景にある流れ: なぜ今それが注目されているか\n📈 今後の予測: 半年〜1年先に流行りそうなテーマを根拠とともに予測`;
+      const t=await callLLM(system,user);
+      return `<div class="brief">${mdLite(t)}</div>`;
+    }catch(e){
+      return researchTrendsLocal();
+    }
+  }
+  // 簡易Markdown→HTML（太字・箇条書きのみ。XSS対策にescしてから変換）
+  function mdLite(t){
+    return esc(t)
+      .replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>')
+      .replace(/^[\-\*]\s+/gm,'・')
+      .replace(/\n+/g,'<br>');
+  }
+
   async function loadNews(){
     const card=document.getElementById('newsCard');
     try{
@@ -690,11 +734,21 @@
           <div class="rd">${esc(sum)}…</div></div>`;
       }).join('');
       _latestResearchItems=entries.map(e=>({title:(e.querySelector('title')?.textContent||'').replace(/\s+/g,' ').trim()}));
-      card.innerHTML=`<div class="ctitle"><span class="ico">🛰</span>Research Radar<span class="more" onclick="loadResearch()">↻</span></div>${html}<div id="researchAdviceSlot">${trendAdviceHtml()}</div>`;
+      card.innerHTML=`<div class="ctitle"><span class="ico">🛰</span>Research Radar<span class="more" onclick="loadResearch()">↻</span></div>${html}`
+        +`<div class="trend-box"><div class="trend-h">📡 研究動向＆今後の流行予測</div><div id="researchTrendsSlot"><div class="brief">分析中…</div></div></div>`
+        +`<div id="researchAdviceSlot">${trendAdviceHtml()}</div>`;
+      researchTrendsAuto().then(trends=>{
+        const slot=document.getElementById('researchTrendsSlot');
+        if(slot) slot.innerHTML=trends;
+      }).catch(()=>{});
       trendAdviceHtmlAuto().then(advice=>{
         const slot=document.getElementById('researchAdviceSlot');
         if(slot) slot.outerHTML=advice;
       }).catch(()=>{});
+      // 論文が揃ったらキャリア助言を最新研究トレンド込みで再生成
+      if(CFG.AI_API_KEY && document.getElementById('careerAdviceSlot')){
+        careerAdviceAuto().then(html=>{const s=document.getElementById('careerAdviceSlot');if(s)s.innerHTML=html;}).catch(()=>{});
+      }
     }catch(_){
       card.innerHTML=`<div class="ctitle"><span class="ico">🛰</span>Research Radar<span class="more" onclick="loadResearch()">↻</span></div><div class="err">論文の取得に失敗しました。時間を置いて再試行してください。</div>`;
     }
@@ -715,7 +769,24 @@
         <span class="jnew">OPEN</span></a>`;
     }).join('');
     card.innerHTML=`<div class="ctitle"><span class="ico">💼</span>Career Radar</div>${html}
-      <div style="font-size:10.5px;color:var(--faint);margin-top:8px">注目企業の採用ページを検索します</div>`;
+      <div style="font-size:10.5px;color:var(--faint);margin-top:8px">注目企業の採用ページを検索します</div>
+      <div class="trend-box" style="margin-top:12px"><div class="trend-h">🧑‍🚀 あなた専用キャリアアドバイス</div>
+        <div id="careerAdviceSlot"><div class="brief">${CFG.AI_API_KEY?'あなたのプロフィールを分析中…':'⚙️設定でAIキーを入れると、あなた専用の助言が出ます。'}</div></div></div>`;
+    if(CFG.AI_API_KEY) careerAdviceAuto().then(html=>{const s=document.getElementById('careerAdviceSlot');if(s)s.innerHTML=html;}).catch(()=>{});
+  }
+  // ペルソナ＋注目企業＋最新研究動向から、本人専用のキャリア助言を生成
+  async function careerAdviceAuto(){
+    try{
+      const persona=CFG.USER_PERSONA||(CFG.USER_NAME?`${CFG.USER_NAME}（自動運転・AI研究志望）`:'自動運転・AI研究を志す若手エンジニア');
+      const cos=(CFG.WATCH_COMPANIES||[]).join(', ');
+      const papers=_latestResearchItems.slice(0,4).map(x=>x.title).filter(Boolean).join('\n')||'（未取得）';
+      const system='あなたは自動運転・AI業界に精通したキャリアコーチです。対象者本人のプロフィールに完全に合わせ、具体的で実行可能な助言を日本語で出します。一般論は避け、本人の関心領域と志望企業に紐づけること。各項目1〜2文、文頭に絵文字。前置き・締めの挨拶は不要。';
+      const user=`【対象者プロフィール】\n${persona}\n\n【志望企業】\n${cos}\n\n【今日の研究トレンド（最新論文）】\n${papers}\n\n上記を踏まえ、次の3点を出力:\n🎯 今週の一手: 志望企業に近づくため今週やるべき具体行動を1つ\n🧩 埋めるべきギャップ: 志望職に対して本人に不足しがちなスキル/実績と補い方\n📨 アピール戦略: 志望企業の選考で効くポートフォリオ/発信の見せ方`;
+      const t=await callLLM(system,user);
+      return `<div class="brief">${mdLite(t)}</div>`;
+    }catch(e){
+      return `<div class="brief" style="color:var(--faint)">アドバイス生成に失敗しました（${esc(String(e.message||e)).slice(0,60)}）。</div>`;
+    }
   }
 
   /* ── AI Briefing summary ─────────────────────────── */
