@@ -1,0 +1,17 @@
+# config.js は秘密キーを含まない設定（都市・ティッカー・公開OKなOAuth Client IDのみ）
+# AIのAPIキーはコードに置かず、アプリの ⚙️ 設定画面からブラウザ内(localStorage)に保存します。
+# そのため config.js は公開リポジトリに含めて構いません（このファイルでは無視しません）。
+
+# Claude Code / エディタ
+.claude/
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ログ・依存
+*.log
+node_modules/

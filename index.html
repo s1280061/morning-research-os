@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#eaf2fb" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <title>MORNING OS — Research & Life Command Center</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Orbitron:wght@600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg1:#dce9fb; --bg2:#eef4fc; --bg3:#f6f9fe;
+      --ink:#16243b; --ink2:#3a4d6b; --sub:#6b7e9c; --faint:#9fb0ca;
+      --line:#d3e1f5; --line2:#e4eefb;
+      --blue:#2d7ff9; --blue2:#5aa0ff; --cyan:#26c6f0; --violet:#7c8cff;
+      --green:#16b87f; --red:#f0506b; --amber:#f5a524;
+      --glass: rgba(255,255,255,.72);
+      --glass2: rgba(255,255,255,.55);
+      --shadow: 0 8px 30px rgba(45,103,160,.10);
+      --shadow-lg: 0 14px 44px rgba(38,90,160,.16);
+      --r: 20px; --r-sm: 14px;
+    }
+    *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+    html{font-size:16px;}
+    body{
+      font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI','Hiragino Sans',sans-serif;
+      color:var(--ink);
+      min-height:100vh;
+      background:
+        radial-gradient(1200px 600px at 85% -5%, rgba(90,160,255,.22), transparent 60%),
+        radial-gradient(900px 500px at -5% 10%, rgba(124,140,255,.16), transparent 55%),
+        linear-gradient(160deg, var(--bg1), var(--bg2) 45%, var(--bg3));
+      background-attachment:fixed;
+      -webkit-font-smoothing:antialiased;
+    }
+    a{color:inherit;text-decoration:none;}
+    .wrap{max-width:1120px;margin:0 auto;padding:18px 20px 60px;}
+
+    /* HUD grid texture overlay */
+    body::before{
+      content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.5;
+      background-image:
+        linear-gradient(rgba(120,160,220,.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(120,160,220,.06) 1px, transparent 1px);
+      background-size:42px 42px;
+      mask-image:radial-gradient(circle at 50% 0%, #000 0%, transparent 75%);
+    }
+    .wrap{position:relative;z-index:1;}
+
+    /* ── NAV ─────────────────────────────────────────── */
+    nav{
+      display:flex;align-items:center;justify-content:space-between;
+      padding:14px 20px;border-radius:var(--r);
+      background:var(--glass);backdrop-filter:blur(14px);
+      border:1px solid rgba(255,255,255,.7);box-shadow:var(--shadow);
+      position:relative;overflow:hidden;
+    }
+    nav::after{ /* HUD corner ring */
+      content:"";position:absolute;right:-30px;top:-30px;width:120px;height:120px;border-radius:50%;
+      border:1.5px solid rgba(45,127,249,.25);
+      box-shadow:inset 0 0 0 6px rgba(45,127,249,.06), 0 0 30px rgba(45,127,249,.15);
+    }
+    .brand{display:flex;align-items:center;gap:12px;}
+    .brand .logo{
+      width:40px;height:40px;border-radius:12px;flex:none;display:grid;place-items:center;
+      background:linear-gradient(135deg,var(--blue),var(--cyan));color:#fff;
+      box-shadow:0 6px 16px rgba(45,127,249,.4);transform:rotate(45deg);
+    }
+    .brand .logo span{transform:rotate(-45deg);font-weight:800;font-size:18px;}
+    .brand h1{font-family:'Orbitron',sans-serif;font-size:19px;font-weight:800;letter-spacing:1.5px;line-height:1;}
+    .brand .tag{font-size:9.5px;letter-spacing:3px;color:var(--sub);font-weight:600;margin-top:3px;}
+    .nav-tools{display:flex;align-items:center;gap:8px;z-index:1;}
+    .icon-btn{
+      width:38px;height:38px;border-radius:11px;border:1px solid var(--line);
+      background:rgba(255,255,255,.6);display:grid;place-items:center;cursor:pointer;
+      font-size:16px;color:var(--ink2);transition:.18s;position:relative;
+    }
+    .icon-btn:hover{border-color:var(--blue);color:var(--blue);transform:translateY(-1px);}
+    .icon-btn.active{background:linear-gradient(135deg,var(--blue),var(--cyan));color:#fff;border-color:transparent;box-shadow:0 4px 12px rgba(45,127,249,.35);}
+    .icon-btn .badge{position:absolute;top:-4px;right:-4px;background:var(--red);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;}
+
+    /* ── HERO ────────────────────────────────────────── */
+    .hero{margin:26px 4px 18px;display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;}
+    .hero h2{font-size:34px;font-weight:800;letter-spacing:-.5px;line-height:1.1;}
+    .hero h2 .name{background:linear-gradient(135deg,var(--blue),var(--violet));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+    .hero p{color:var(--sub);font-size:14px;margin-top:6px;}
+    .ctrl{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+    .ctrl input{
+      width:130px;background:rgba(255,255,255,.7);border:1px solid var(--line);border-radius:11px;
+      padding:9px 13px;font-size:13px;color:var(--ink);outline:none;font-family:inherit;
+    }
+    .ctrl input:focus{border-color:var(--blue);}
+    .ctrl .mini{
+      background:rgba(255,255,255,.7);border:1px solid var(--line);border-radius:11px;
+      padding:9px 13px;font-size:13px;font-weight:600;color:var(--ink2);cursor:pointer;transition:.18s;white-space:nowrap;
+    }
+    .ctrl .mini:hover{border-color:var(--blue);color:var(--blue);}
+    .ctrl .mini.primary{background:linear-gradient(135deg,var(--blue),var(--cyan));color:#fff;border-color:transparent;box-shadow:0 4px 12px rgba(45,127,249,.3);}
+    .ctrl .mini.on{border-color:var(--green);color:var(--green);}
+
+    /* ── GRID ────────────────────────────────────────── */
+    .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;align-items:start;}
+    .span2{grid-column:span 2;}
+    .span4{grid-column:span 4;}
+
+    .card{
+      background:var(--glass);backdrop-filter:blur(14px);
+      border:1px solid rgba(255,255,255,.75);border-radius:var(--r);
+      box-shadow:var(--shadow);padding:18px;position:relative;overflow:hidden;
+      transition:transform .2s, box-shadow .2s;
+    }
+    .card:hover{box-shadow:var(--shadow-lg);}
+    .ctitle{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:var(--ink);margin-bottom:14px;}
+    .ctitle .ico{font-size:16px;}
+    .ctitle .more{margin-left:auto;font-size:11px;color:var(--blue);font-weight:600;cursor:pointer;}
+    .ctitle .new{margin-left:auto;font-size:9px;font-weight:800;letter-spacing:.5px;color:#fff;background:linear-gradient(135deg,var(--blue),var(--cyan));padding:2px 7px;border-radius:7px;}
+
+    .loading{color:var(--sub);font-size:13px;}
+    .err{color:var(--red);font-size:12.5px;line-height:1.5;}
+    .empty{color:var(--sub);font-size:13px;}
+
+    /* Weather mini */
+    .w-top{display:flex;align-items:center;gap:10px;}
+    .w-ico{font-size:42px;line-height:1;}
+    .w-temp{font-size:34px;font-weight:800;letter-spacing:-1px;}
+    .w-temp small{font-size:18px;font-weight:700;color:var(--sub);}
+    .w-desc{font-size:13px;color:var(--ink2);font-weight:600;margin-left:auto;text-align:right;}
+    .w-stats{display:flex;gap:14px;margin-top:12px;font-size:12px;color:var(--ink2);}
+    .w-stats b{color:var(--ink);}
+    .w-loc{font-size:11.5px;color:var(--blue);margin-top:10px;display:flex;align-items:center;gap:4px;}
+
+    /* Summary lines (schedule mini) */
+    .sline{display:flex;align-items:center;gap:8px;font-size:12.5px;padding:6px 0;border-top:1px dashed var(--line2);}
+    .sline:first-of-type{border-top:none;}
+    .sline .tm{font-weight:700;color:var(--blue);min-width:42px;}
+    .sline .tt{color:var(--ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .sline .arr{margin-left:auto;color:var(--faint);}
+    .big-num{font-size:30px;font-weight:800;letter-spacing:-1px;}
+    .big-num small{font-size:14px;color:var(--sub);font-weight:600;}
+
+    /* Tasks */
+    .progress{height:7px;border-radius:6px;background:var(--line2);overflow:hidden;margin:6px 0 12px;}
+    .progress i{display:block;height:100%;border-radius:6px;background:linear-gradient(90deg,var(--blue),var(--cyan));transition:width .5s;}
+    .tlist{list-style:none;display:flex;flex-direction:column;gap:8px;}
+    .titem{display:flex;align-items:flex-start;gap:9px;cursor:pointer;font-size:13px;line-height:1.4;}
+    .titem .ck{width:17px;height:17px;border:2px solid var(--faint);border-radius:6px;flex:none;margin-top:1px;display:grid;place-items:center;font-size:11px;color:#fff;transition:.15s;}
+    .titem.done .ck{background:var(--green);border-color:var(--green);}
+    .titem.done .tx{color:var(--faint);text-decoration:line-through;}
+    .tadd{display:flex;gap:7px;margin-top:12px;}
+    .tadd input{flex:1;background:rgba(255,255,255,.7);border:1px solid var(--line);border-radius:10px;padding:7px 11px;font-size:12.5px;outline:none;font-family:inherit;}
+    .tadd input:focus{border-color:var(--blue);}
+    .tadd button{background:linear-gradient(135deg,var(--blue),var(--cyan));border:none;color:#fff;border-radius:10px;width:34px;font-size:18px;font-weight:700;cursor:pointer;}
+
+    /* Briefing */
+    .brief{font-size:13px;color:var(--ink2);line-height:1.6;}
+
+    /* Market */
+    .mkt{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;}
+    .mkt .col{border-right:1px solid var(--line2);padding-right:14px;}
+    .mkt .col:last-child{border-right:none;padding-right:0;}
+    .mkt .lbl{font-size:11px;color:var(--sub);font-weight:600;margin-bottom:4px;}
+    .mkt .px{font-size:24px;font-weight:800;letter-spacing:-.5px;}
+    .mkt .chg{font-size:12px;font-weight:700;margin-top:2px;}
+    .mkt .spark{margin-top:8px;height:40px;}
+    .up{color:var(--green);} .down{color:var(--red);}
+
+    /* News */
+    .nlist{list-style:none;display:flex;flex-direction:column;}
+    .nitem{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-top:1px solid var(--line2);}
+    .nitem:first-child{border-top:none;padding-top:2px;}
+    .nitem .dot{width:7px;height:7px;border-radius:50%;background:var(--blue);margin-top:6px;flex:none;}
+    .nitem .nt{flex:1;font-size:13px;color:var(--ink2);line-height:1.45;}
+    .nitem .nt:hover{color:var(--blue);}
+    .nitem .ntm{font-size:11px;color:var(--faint);font-weight:600;white-space:nowrap;}
+
+    /* Gmail big */
+    .mail-big{text-align:center;padding:6px 0;}
+    .mail-big .n{font-size:46px;font-weight:800;background:linear-gradient(135deg,var(--blue),var(--violet));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;line-height:1;}
+    .mail-big .u{font-size:12px;color:var(--sub);margin-top:4px;}
+    .mlist{list-style:none;margin-top:10px;display:flex;flex-direction:column;gap:7px;text-align:left;}
+    .mlist li{font-size:12px;color:var(--ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .mlist li b{color:var(--ink);}
+    .cta{display:block;text-align:center;margin-top:12px;font-size:12px;font-weight:600;color:var(--blue);border:1px solid var(--line);border-radius:10px;padding:8px;cursor:pointer;}
+    .cta:hover{border-color:var(--blue);background:rgba(45,127,249,.05);}
+
+    /* Outfit */
+    .outfit-h{text-align:center;font-size:15px;font-weight:700;margin-bottom:10px;}
+    .outfit-emoji{font-size:40px;text-align:center;margin-bottom:8px;}
+    .chips{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;}
+    .chip{background:rgba(45,127,249,.08);border:1px solid var(--line);border-radius:20px;padding:4px 12px;font-size:11.5px;color:var(--ink2);}
+    .outfit-tip{font-size:11.5px;color:var(--sub);text-align:center;margin-top:10px;line-height:1.5;}
+
+    /* Quote */
+    .quote-card{background:linear-gradient(150deg,#eaf2ff,#f3f0ff);}
+    .quote-tx{font-size:14px;font-weight:600;color:var(--ink);line-height:1.7;}
+    .quote-mark{font-size:34px;color:var(--blue2);line-height:.6;font-family:'Orbitron';}
+
+    /* Radar */
+    .ritem{padding:10px 0;border-top:1px solid var(--line2);}
+    .ritem:first-of-type{border-top:none;padding-top:2px;}
+    .ritem .rid{font-size:10.5px;color:var(--violet);font-weight:700;letter-spacing:.3px;}
+    .ritem .rt{font-size:13px;font-weight:700;color:var(--ink);line-height:1.4;margin:2px 0;}
+    .ritem .rt:hover{color:var(--blue);}
+    .ritem .rd{font-size:11.5px;color:var(--sub);line-height:1.45;}
+    .ritem .rtm{font-size:10.5px;color:var(--faint);float:right;}
+    .barL{border-left:3px solid var(--blue);padding-left:10px;}
+
+    .jitem{display:flex;gap:11px;align-items:center;padding:10px 0;border-top:1px solid var(--line2);}
+    .jitem:first-of-type{border-top:none;padding-top:2px;}
+    .jlogo{width:34px;height:34px;border-radius:9px;flex:none;display:grid;place-items:center;font-weight:800;color:#fff;font-size:14px;}
+    .jbody{flex:1;min-width:0;}
+    .jco{font-size:12.5px;font-weight:700;}
+    .jrole{font-size:11.5px;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .jnew{font-size:8.5px;font-weight:800;color:#fff;background:var(--green);padding:2px 6px;border-radius:6px;}
+
+    /* AI Coach panel */
+    .coach{
+      grid-column:span 4;color:#dbeafe;border:none;
+      background:
+        radial-gradient(600px 300px at 12% 20%, rgba(38,198,240,.35), transparent 60%),
+        linear-gradient(135deg,#0b2a52,#123a7a 55%,#1e4ea8);
+      box-shadow:0 18px 50px rgba(16,52,110,.4);
+    }
+    .coach .ctitle{color:#fff;}
+    .coach-grid{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr auto;gap:20px;align-items:center;}
+    .coach-cell .cl{font-size:11px;color:#9cc4f5;font-weight:600;display:flex;align-items:center;gap:6px;margin-bottom:6px;}
+    .coach-cell .cv{font-size:13px;color:#eaf3ff;line-height:1.55;}
+    .coach-cell .miniprog{height:6px;border-radius:5px;background:rgba(255,255,255,.15);overflow:hidden;margin-top:8px;}
+    .coach-cell .miniprog i{display:block;height:100%;background:linear-gradient(90deg,var(--cyan),#7ee0ff);}
+    .phd-num{font-size:40px;font-weight:800;color:#fff;line-height:1;}
+    .phd-num small{font-size:15px;color:#9cc4f5;}
+    .phd-tr{font-size:12px;font-weight:700;color:#67e8b0;margin-top:3px;}
+    .start{
+      width:108px;height:108px;border-radius:50%;flex:none;cursor:pointer;border:none;
+      background:radial-gradient(circle at 50% 40%, #4fd8ff, #1f8fff 60%, #1257c9);
+      color:#fff;font-weight:800;font-size:12px;letter-spacing:1px;line-height:1.3;
+      box-shadow:0 0 0 6px rgba(79,216,255,.12), 0 0 34px rgba(79,216,255,.55);
+      transition:.2s;display:grid;place-items:center;text-align:center;
+    }
+    .start:hover{transform:scale(1.05);box-shadow:0 0 0 8px rgba(79,216,255,.18),0 0 44px rgba(79,216,255,.7);}
+    .start:active{transform:scale(.97);}
+
+    /* footer */
+    .foot{display:flex;justify-content:center;align-items:center;gap:18px;margin-top:24px;font-size:11.5px;color:var(--sub);}
+    .foot .ok{display:flex;align-items:center;gap:6px;color:var(--green);font-weight:600;}
+    .foot .ok::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);}
+
+    /* toast */
+    .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(16px);
+      background:rgba(20,40,70,.92);color:#fff;padding:9px 18px;border-radius:30px;font-size:13px;
+      opacity:0;transition:.25s;pointer-events:none;z-index:999;backdrop-filter:blur(8px);}
+    .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+    /* modal */
+    .modal-bg{position:fixed;inset:0;background:rgba(20,40,70,.45);backdrop-filter:blur(4px);
+      display:none;align-items:center;justify-content:center;z-index:1000;padding:18px;}
+    .modal-bg.show{display:flex;}
+    .modal{background:#fff;border-radius:20px;box-shadow:var(--shadow-lg);width:100%;max-width:440px;
+      padding:22px;max-height:90vh;overflow:auto;}
+    .modal-h{font-size:18px;font-weight:800;display:flex;align-items:center;margin-bottom:6px;}
+    .modal-x{margin-left:auto;cursor:pointer;color:var(--sub);font-size:16px;}
+    .modal-note{font-size:11px;color:var(--sub);line-height:1.5;background:rgba(45,127,249,.07);
+      border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-bottom:12px;}
+    .fld{display:block;font-size:12px;font-weight:600;color:var(--ink2);margin-bottom:12px;}
+    .fld input,.fld select{display:block;width:100%;margin-top:5px;background:#f6f9fe;border:1px solid var(--line);
+      border-radius:10px;padding:10px 12px;font-size:14px;color:var(--ink);outline:none;font-family:inherit;font-weight:400;}
+    .fld input:focus,.fld select:focus{border-color:var(--blue);}
+    .fld-h{font-size:12px;font-weight:800;color:var(--blue);margin:16px 0 10px;letter-spacing:.5px;}
+    .modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:8px;}
+    .link-danger{font-size:11px;color:var(--red);cursor:pointer;text-decoration:underline;}
+
+    /* responsive */
+    @media(max-width:900px){
+      .grid{grid-template-columns:repeat(2,1fr);}
+      .span2{grid-column:span 2;}
+      .coach-grid{grid-template-columns:1fr 1fr;gap:16px;}
+      .coach-grid .start-wrap{grid-column:span 2;display:flex;justify-content:center;}
+    }
+    @media(max-width:560px){
+      .grid{grid-template-columns:1fr;}
+      .span2,.span4,.coach{grid-column:span 1;}
+      .mkt{grid-template-columns:1fr;}
+      .mkt .col{border-right:none;border-bottom:1px solid var(--line2);padding:0 0 12px;}
+      .mkt .col:last-child{border-bottom:none;padding-bottom:0;}
+      .coach-grid{grid-template-columns:1fr;}
+      .coach-grid .start-wrap{grid-column:span 1;}
+      .hero h2{font-size:27px;}
+      .brand .tag{display:none;}
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- NAV -->
+  <nav>
+    <div class="brand">
+      <div class="logo"><span>M</span></div>
+      <div>
+        <h1>MORNING OS</h1>
+        <div class="tag">RESEARCH &amp; LIFE COMMAND CENTER</div>
+      </div>
+    </div>
+    <div class="nav-tools">
+      <div class="icon-btn" id="settingsBtn" title="設定（APIキー・名前など）" onclick="openSettings()">⚙️</div>
+      <div class="icon-btn" id="notifyBtn" title="8:55通知" onclick="toggleNotify()">🔔</div>
+      <div class="icon-btn" id="googleBtn" title="Google連携" onclick="handleGoogleAuth()">👤</div>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <div class="hero">
+    <div>
+      <h2 id="headline">Good Morning, <span class="name" id="userName">Researcher</span> 👋</h2>
+      <p id="subline">最高の1日を。今日も一歩、未来の研究者へ。</p>
+    </div>
+    <div class="ctrl">
+      <input type="text" id="cityInput" placeholder="Tokyo" />
+      <button class="mini primary" onclick="loadAll()">更新</button>
+    </div>
+  </div>
+
+  <!-- GRID -->
+  <div class="grid">
+
+    <!-- Row 1 -->
+    <div class="card" id="weatherCard"><div class="ctitle"><span class="ico">🌤</span>天気</div><div class="loading">読み込み中…</div></div>
+
+    <div class="card" id="scheduleCard"><div class="ctitle"><span class="ico">📅</span>Today's Schedule</div><div class="loading">読み込み中…</div></div>
+
+    <div class="card" id="tasksCard"><div class="ctitle"><span class="ico">✅</span>Today's Tasks</div><div class="loading">読み込み中…</div></div>
+
+    <div class="card" id="briefCard"><div class="ctitle"><span class="ico">🗂</span>AI Briefing<span class="new">NEW</span></div><div class="loading">生成中…</div></div>
+
+    <!-- Row 2 -->
+    <div class="card span2" id="marketCard"><div class="ctitle"><span class="ico">📊</span>Market Overview</div><div class="loading">読み込み中…</div></div>
+
+    <div class="card span2" id="newsCard"><div class="ctitle"><span class="ico">⚡</span>News Flash<span class="more" onclick="loadNews()">↻ もっと見る</span></div><div class="loading">読み込み中…</div></div>
+
+    <!-- Row 3 -->
+    <div class="card" id="calCard"><div class="ctitle"><span class="ico">📆</span>Google Calendar</div><div class="loading">読み込み中…</div></div>
+
+    <div class="card" id="mailCard"><div class="ctitle"><span class="ico">📧</span>Gmail</div><div class="loading">読み込み中…</div></div>
+
+    <div class="card" id="outfitCard"><div class="ctitle"><span class="ico">👕</span>今日の服装</div><div class="loading">天気を取得中…</div></div>
+
+    <div class="card quote-card" id="quoteCard"><div class="ctitle"><span class="ico">⭐</span>今日の一言</div><div class="loading">…</div></div>
+
+    <!-- Row 4 -->
+    <div class="card span2" id="researchCard"><div class="ctitle"><span class="ico">🛰</span>Research Radar<span class="more" onclick="loadResearch()">↻</span></div><div class="loading">arXiv から取得中…</div></div>
+
+    <div class="card span2" id="careerCard"><div class="ctitle"><span class="ico">💼</span>Career Radar</div><div class="loading">…</div></div>
+
+    <!-- Row 5: AI Coach -->
+    <div class="card coach">
+      <div class="ctitle"><span class="ico">🧭</span>今日のAIコーチからの提案</div>
+      <div class="coach-grid">
+        <div class="coach-cell">
+          <div class="cl">🎯 今日のFocus</div>
+          <div class="cv" id="coachFocus">—</div>
+          <div class="miniprog"><i id="focusProg" style="width:0%"></i></div>
+        </div>
+        <div class="coach-cell">
+          <div class="cl">📊 研究活動ログ</div>
+          <div class="cv" id="coachLog">—</div>
+        </div>
+        <div class="coach-cell">
+          <div class="cl">🏆 PhD準備スコア</div>
+          <div class="phd-num"><span id="phdScore">67</span><small>/100</small></div>
+          <div class="phd-tr" id="phdTrend">前日比 +0.0</div>
+        </div>
+        <div class="coach-cell">
+          <div class="cl">🌅 状態</div>
+          <div class="cv" id="coachState">START を押して<br>今日を記録</div>
+        </div>
+        <div class="coach-cell start-wrap">
+          <button class="start" id="startBtn" onclick="startDay()">START<br>YOUR DAY</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="foot">
+    <span id="lastUpdated">最終更新: —</span>
+    <span class="ok">All Systems Operational</span>
+  </div>
+</div>
+
+<!-- Settings modal -->
+<div class="modal-bg" id="settingsModal" onclick="if(event.target===this)closeSettings()">
+  <div class="modal">
+    <div class="modal-h">⚙️ 設定<span class="modal-x" onclick="closeSettings()">✕</span></div>
+    <div class="modal-note">🔒 入力内容はこの端末のブラウザ内(localStorage)にのみ保存され、公開サイトのソースには含まれません。</div>
+
+    <label class="fld">表示名
+      <input id="setName" placeholder="例: Kaito">
+    </label>
+    <label class="fld">都市（天気・ローマ字推奨）
+      <input id="setCity" placeholder="例: Atsugi">
+    </label>
+
+    <div class="fld-h">🤖 AI Briefing</div>
+    <label class="fld">プロバイダ
+      <select id="setProvider">
+        <option value="anthropic">Anthropic (Claude)</option>
+        <option value="openai">OpenAI (GPT)</option>
+      </select>
+    </label>
+    <label class="fld">モデル
+      <input id="setModel" placeholder="claude-3-5-haiku-20241022">
+    </label>
+    <label class="fld">APIキー（sk-... / sk-ant-...）
+      <input id="setKey" type="password" placeholder="保存済みの場合は ●●● 表示">
+    </label>
+    <div class="modal-note" style="margin-top:6px">⚠️ 公開サイトでAIを使うと、このキーはあなたのブラウザに保存され安全です。他の人には共有されません。</div>
+
+    <div class="fld-h">📅 Google 連携（任意）</div>
+    <label class="fld">OAuth クライアントID
+      <input id="setGid" placeholder="xxxx.apps.googleusercontent.com">
+    </label>
+
+    <div class="modal-actions">
+      <button class="mini" onclick="closeSettings()">キャンセル</button>
+      <button class="mini primary" onclick="saveSettings()">保存して再読み込み</button>
+    </div>
+    <div style="text-align:center;margin-top:10px"><span class="link-danger" onclick="clearKey()">保存したAPIキーを削除</span></div>
+  </div>
+</div>
+
+<script src="config.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+  // config.js(公開・非秘密) に、ブラウザ内のユーザー設定(localStorage)を上書きマージ。
+  // APIキーなどの秘密は localStorage にのみ保存され、公開ソースには含まれません。
+  function getUserSettings(){try{return JSON.parse(localStorage.getItem('user_settings')||'{}');}catch(_){return{};}}
+  const CFG = Object.assign({}, window.APP_CONFIG || {}, getUserSettings());
+  function saveUserSettings(patch){
+    const s=Object.assign(getUserSettings(),patch);
+    localStorage.setItem('user_settings',JSON.stringify(s));
+    Object.assign(CFG,s);
+    return s;
+  }
+
+  /* ── greeting / hero ─────────────────────────────── */
+  const now = new Date();
+  const days=['日','月','火','水','木','金','土'];
+  (function(){
+    const h=now.getHours();
+    let g;
+    if(h<5)g='Good Night,'; else if(h<11)g='Good Morning,'; else if(h<17)g='Hello,'; else g='Good Evening,';
+    const name = CFG.USER_NAME || 'Researcher';
+    document.getElementById('userName').textContent = name;
+    document.getElementById('headline').innerHTML = `${g} <span class="name">${esc(name)}</span> 👋`;
+    document.getElementById('userName').parentElement; // noop
+  })();
+  document.getElementById('cityInput').value = localStorage.getItem('city') || CFG.DEFAULT_CITY || 'Tokyo';
+
+  /* ── CORS proxy helper ───────────────────────────── */
+  async function fetchT(url, opts={}, ms=8000){
+    const ac=new AbortController();const id=setTimeout(()=>ac.abort(),ms);
+    try{return await fetch(url,{...opts,signal:ac.signal});}finally{clearTimeout(id);}
+  }
+  async function fetchViaProxy(url, asText=false){
+    const proxies=[
+      u=>`https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+      u=>`https://corsproxy.io/?url=${encodeURIComponent(u)}`,
+      u=>`https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(u)}`,
+    ];
+    for(const p of proxies){
+      try{const r=await fetchT(p(url));if(!r.ok)continue;return asText?await r.text():await r.json();}catch(_){}
+    }
+    throw new Error('proxy failed');
+  }
+  function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+
+  /* ── Weather ─────────────────────────────────────── */
+  const WICON={113:'☀️',116:'⛅',119:'☁️',122:'☁️',143:'🌫️',176:'🌦️',179:'🌨️',182:'🌧️',185:'🌧️',200:'⛈️',227:'🌨️',230:'❄️',248:'🌫️',260:'🌫️',263:'🌦️',266:'🌧️',281:'🌧️',284:'🌧️',293:'🌦️',296:'🌧️',299:'🌧️',302:'🌧️',305:'🌧️',308:'🌧️',311:'🌧️',314:'🌧️',317:'🌧️',320:'🌨️',323:'🌨️',326:'🌨️',329:'❄️',332:'❄️',335:'❄️',338:'❄️',350:'🌧️',353:'🌦️',356:'🌧️',359:'🌧️',362:'🌨️',365:'🌨️',368:'🌨️',371:'❄️',374:'🌧️',377:'🌧️',386:'⛈️',389:'⛈️',392:'⛈️',395:'❄️'};
+  let currentWeather=null;
+  async function loadWeather(city){
+    const card=document.getElementById('weatherCard');
+    try{
+      let d;
+      try{
+        const res=await fetchT(`https://wttr.in/${encodeURIComponent(city)}?format=j1`,{},8000);
+        if(!res.ok)throw 0; d=await res.json();
+      }catch(_){
+        d=await fetchViaProxy(`https://wttr.in/${encodeURIComponent(city)}?format=j1`);
+      }
+      const c=d.current_condition[0], loc=d.nearest_area[0];
+      const w={tempC:+c.temp_C,feels:+c.FeelsLikeC,humidity:c.humidity,windKph:c.windspeedKmph,
+        desc:(c.lang_ja?c.lang_ja[0].value:c.weatherDesc[0].value),code:+c.weatherCode,
+        loc:`${loc.areaName[0].value}, ${loc.country[0].value}`};
+      currentWeather=w; renderOutfit(w); renderBrief();
+      card.innerHTML=`<div class="ctitle"><span class="ico">🌤</span>天気</div>
+        <div class="w-top">
+          <div class="w-ico">${WICON[w.code]||'🌡️'}</div>
+          <div class="w-temp">${w.tempC}<small>°C</small></div>
+          <div class="w-desc">${esc(w.desc)}</div>
+        </div>
+        <div class="w-stats">
+          <span>体感 <b>${w.feels}°</b></span><span>湿度 <b>${w.humidity}%</b></span><span>風 <b>${w.windKph}km/h</b></span>
+        </div>
+        <div class="w-loc">📍 ${esc(w.loc)}</div>`;
+    }catch(e){
+      card.innerHTML=`<div class="ctitle"><span class="ico">🌤</span>天気</div><div class="err">天気の取得に失敗しました。都市名を確認してください。</div>`;
+    }
+  }
+
+  /* ── Market (sparkline) ──────────────────────────── */
+  async function fetchChart(ticker){
+    const url=`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=15m&range=1d`;
+    const j=await fetchViaProxy(url);
+    const r=j.chart.result[0];
+    const closes=(r.indicators?.quote?.[0]?.close||[]).filter(v=>v!=null);
+    return {meta:r.meta,closes};
+  }
+  function spark(closes,up,w=130,h=40){
+    if(closes.length<2)return '';
+    const min=Math.min(...closes),max=Math.max(...closes),rng=(max-min)||1;
+    const col=up?'#16b87f':'#f0506b';
+    const pts=closes.map((v,i)=>`${(i/(closes.length-1)*w).toFixed(1)},${(h-(v-min)/rng*h).toFixed(1)}`).join(' ');
+    const gid='g'+Math.random().toString(36).slice(2,7);
+    return `<svg class="spark" width="100%" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+      <defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="${col}" stop-opacity=".28"/><stop offset="1" stop-color="${col}" stop-opacity="0"/>
+      </linearGradient></defs>
+      <polygon points="0,${h} ${pts} ${w},${h}" fill="url(#${gid})"/>
+      <polyline points="${pts}" fill="none" stroke="${col}" stroke-width="1.6" stroke-linejoin="round"/></svg>`;
+  }
+  function fmt(n,d=2){return (n||0).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});}
+  function mktCol(lbl,sym,c,d){
+    if(!c)return `<div class="col"><div class="lbl">${lbl}</div><div class="err">—</div></div>`;
+    const price=c.meta.regularMarketPrice, prev=c.meta.chartPreviousClose;
+    const delta=price-prev, pct=delta/prev*100, up=delta>=0;
+    return `<div class="col"><div class="lbl">${lbl}</div>
+      <div class="px">${sym}${fmt(price,d)}</div>
+      <div class="chg ${up?'up':'down'}">${up?'+':''}${fmt(delta,d)} (${up?'+':''}${pct.toFixed(2)}%)</div>
+      ${spark(c.closes,up)}</div>`;
+  }
+  async function loadMarket(){
+    const card=document.getElementById('marketCard');
+    const [sp,ni,fx]=await Promise.allSettled([
+      fetchChart('^GSPC'), fetchChart(CFG.NISSAN_TICKER||'7201.T'), fetchChart('JPY=X')
+    ]);
+    const g=r=>r.status==='fulfilled'?r.value:null;
+    window._spChart=g(sp);
+    card.innerHTML=`<div class="ctitle"><span class="ico">📊</span>Market Overview<span class="more" onclick="loadMarket()">↻</span></div>
+      <div class="mkt">
+        ${mktCol('S&P 500','',g(sp),2)}
+        ${mktCol('日産自動車 (7201)','¥',g(ni),2)}
+        ${mktCol('USD / JPY','¥',g(fx),2)}
+      </div>`;
+    renderBrief();
+  }
+
+  /* ── News ────────────────────────────────────────── */
+  async function loadNews(){
+    const card=document.getElementById('newsCard');
+    try{
+      const xmlStr=await fetchViaProxy(CFG.NEWS_RSS||'https://www.nhk.or.jp/rss/news/cat0.xml',true);
+      const xml=new DOMParser().parseFromString(xmlStr,'text/xml');
+      const items=[...xml.querySelectorAll('item')].slice(0,CFG.NEWS_MAX||5);
+      if(!items.length)throw 0;
+      const html=items.map(it=>{
+        const t=it.querySelector('title')?.textContent||'';
+        const l=it.querySelector('link')?.textContent||'#';
+        const pub=it.querySelector('pubDate')?.textContent;
+        const d=pub?new Date(pub):null;
+        const when=d?`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`:'';
+        return `<li class="nitem"><span class="dot"></span>
+          <a class="nt" href="${l}" target="_blank" rel="noopener">${esc(t)}</a>
+          <span class="ntm">${when}</span></li>`;
+      }).join('');
+      card.innerHTML=`<div class="ctitle"><span class="ico">⚡</span>News Flash<span class="more" onclick="loadNews()">↻ もっと見る</span></div><ul class="nlist">${html}</ul>`;
+    }catch(_){
+      card.innerHTML=`<div class="ctitle"><span class="ico">⚡</span>News Flash</div><div class="err">ニュースの取得に失敗しました。</div>`;
+    }
+  }
+
+  /* ── Outfit ──────────────────────────────────────── */
+  function renderOutfit(w){
+    const card=document.getElementById('outfitCard');
+    const {feels,windKph,code}=w;
+    const rain=[176,263,266,281,284,293,296,299,302,305,308,311,314,317,353,356,359,386,389].includes(code);
+    const snow=[179,227,230,320,323,326,329,332,335,338,368,371,392,395].includes(code);
+    let emoji,title,items,tip;
+    if(feels>=28){emoji='🌞';title='暑い日 — 薄着で涼しく';items=['Tシャツ','ショートパンツ','帽子'];tip='UV対策・水分補給を。';}
+    else if(feels>=22){emoji='😊';title='快適 — 半袖ベースで調整';items=['半袖シャツ','薄手のジャケット','チノパン or デニム','スニーカー'];tip='朝晩は羽織れるものを1枚。';}
+    else if(feels>=15){emoji='🍂';title='肌寒い — 重ね着が正解';items=['長袖インナー','カーディガン','デニム','スニーカー'];tip='脱ぎ着しやすいレイヤードを。';}
+    else if(feels>=8){emoji='🧥';title='さむい — アウターを';items=['ニット','コート','厚手パンツ','マフラー'];tip='風が強い日は防風コートを。';}
+    else{emoji='🥶';title='防寒を万全に';items=['ヒートテック','ダウン','厚手パンツ','手袋'];tip='重ね着で体温キープ。';}
+    if(rain)items.push('☂️傘'); if(snow)items.push('🧤防水');
+    if(windKph>30)items.push('💨風対策');
+    card.innerHTML=`<div class="ctitle"><span class="ico">👕</span>今日の服装</div>
+      <div class="outfit-emoji">${emoji}</div>
+      <div class="outfit-h">${title}</div>
+      <div class="chips">${items.map(i=>`<span class="chip">${i}</span>`).join('')}</div>
+      <div class="outfit-tip">${tip}</div>`;
+  }
+
+  /* ── Quote ───────────────────────────────────────── */
+  const QUOTES=[
+    '小さな一歩の積み重ねが、未来の大きな発見につながる。',
+    '今日読む1本の論文が、半年後の研究力を決める。',
+    '完璧を待つより、まず書き始めよう。',
+    '良い問いは、良い答えよりも価値がある。',
+    '昨日の自分を1%超える。それで十分。',
+    '研究は短距離走ではなくマラソン。継続が力。',
+    'アイデアは書き留めた瞬間に資産になる。',
+  ];
+  function renderQuote(){
+    const q=QUOTES[(new Date()).getDate()%QUOTES.length];
+    document.getElementById('quoteCard').innerHTML=
+      `<div class="ctitle"><span class="ico">⭐</span>今日の一言</div>
+       <div class="quote-mark">“</div><div class="quote-tx">${esc(q)}</div>`;
+  }
+
+  /* ── Research Radar (arXiv) ──────────────────────── */
+  async function loadResearch(){
+    const card=document.getElementById('researchCard');
+    const cats=CFG.RESEARCH_CATEGORIES||[{terms:['autonomous driving']}];
+    const terms=cats.flatMap(c=>c.terms).slice(0,4).map(t=>`all:%22${encodeURIComponent(t).replace(/%20/g,'+')}%22`).join('+OR+');
+    const url=`http://export.arxiv.org/api/query?search_query=${terms}&start=0&max_results=${CFG.RESEARCH_MAX||5}&sortBy=submittedDate&sortOrder=descending`;
+    try{
+      const xmlStr=await fetchViaProxy(url,true);
+      const xml=new DOMParser().parseFromString(xmlStr,'text/xml');
+      const entries=[...xml.querySelectorAll('entry')].slice(0,CFG.RESEARCH_MAX||5);
+      if(!entries.length)throw 0;
+      const html=entries.map(e=>{
+        const t=(e.querySelector('title')?.textContent||'').replace(/\s+/g,' ').trim();
+        const sum=(e.querySelector('summary')?.textContent||'').replace(/\s+/g,' ').trim().slice(0,90);
+        const link=(e.querySelector('id')?.textContent||'#').replace('http://','https://');
+        const aid=(link.match(/abs\/([\d.]+)/)||[])[1]||'';
+        const pub=e.querySelector('published')?.textContent;
+        const ago=pub?timeAgo(new Date(pub)):'';
+        return `<div class="ritem barL">
+          <span class="rtm">${ago}</span>
+          <div class="rid">arXiv ${aid}</div>
+          <a class="rt" href="${link}" target="_blank" rel="noopener">${esc(t)}</a>
+          <div class="rd">${esc(sum)}…</div></div>`;
+      }).join('');
+      card.innerHTML=`<div class="ctitle"><span class="ico">🛰</span>Research Radar<span class="more" onclick="loadResearch()">↻</span></div>${html}`;
+    }catch(_){
+      card.innerHTML=`<div class="ctitle"><span class="ico">🛰</span>Research Radar<span class="more" onclick="loadResearch()">↻</span></div><div class="err">論文の取得に失敗しました。時間を置いて再試行してください。</div>`;
+    }
+  }
+  function timeAgo(d){const m=Math.floor((Date.now()-d)/60000);if(m<60)return m+'m ago';const h=Math.floor(m/60);if(h<24)return h+'h ago';return Math.floor(h/24)+'d ago';}
+
+  /* ── Career Radar (watched companies) ────────────── */
+  function renderCareer(){
+    const card=document.getElementById('careerCard');
+    const cos=CFG.WATCH_COMPANIES||['Tier IV','Wayve','Waabi','NVIDIA','Zoox'];
+    const palette=['#6c5ce7','#0984e3','#00b894','#e17055','#d63031','#0a3d62'];
+    const roles=['Research Engineer','ML Engineer','Research Scientist','Perception Engineer','Autonomy Engineer'];
+    const html=cos.slice(0,5).map((co,i)=>{
+      const q=encodeURIComponent(co+' careers autonomous driving');
+      return `<a class="jitem" href="https://www.google.com/search?q=${q}" target="_blank" rel="noopener">
+        <div class="jlogo" style="background:${palette[i%palette.length]}">${esc(co[0])}</div>
+        <div class="jbody"><div class="jco">${esc(co)}</div><div class="jrole">${roles[i%roles.length]} — 採用情報を検索</div></div>
+        <span class="jnew">OPEN</span></a>`;
+    }).join('');
+    card.innerHTML=`<div class="ctitle"><span class="ico">💼</span>Career Radar</div>${html}
+      <div style="font-size:10.5px;color:var(--faint);margin-top:8px">注目企業の採用ページを検索します</div>`;
+  }
+
+  /* ── AI Briefing summary ─────────────────────────── */
+  const briefTitle=`<div class="ctitle"><span class="ico">🗂</span>AI Briefing<span class="new">NEW</span></div>`;
+
+  function localBrief(){
+    const bits=[];
+    if(currentWeather)bits.push(`本日 <b>${currentWeather.tempC}°C ${esc(currentWeather.desc)}</b>。`);
+    const sp=window._spChart;
+    if(sp){const d=sp.meta.regularMarketPrice-sp.meta.chartPreviousClose;bits.push(`S&P500 は${d>=0?'上昇':'下落'}基調。`);}
+    const st=getStats();
+    bits.push(`PhD準備スコア <b>${st.score}</b>。`);
+    bits.push(st.startedToday?'今日のスタート記録済み ✅':'STARTを押して今日を始めましょう。');
+    return bits.join(' ');
+  }
+  function renderBrief(){
+    document.getElementById('briefCard').innerHTML=`${briefTitle}<div class="brief">${localBrief()}</div>`;
+  }
+
+  function buildContext(){
+    const st=getStats();
+    const recent=(st.logDates||[]).filter(d=>(Date.now()-new Date(d))<7*864e5).length;
+    const lines=[];
+    if(currentWeather)lines.push(`天気(${CFG.CITY_LABEL||''}): ${currentWeather.tempC}°C 体感${currentWeather.feels}°C ${currentWeather.desc} 湿度${currentWeather.humidity}% 風${currentWeather.windKph}km/h`);
+    const sp=window._spChart;
+    if(sp){const d=sp.meta.regularMarketPrice-sp.meta.chartPreviousClose;lines.push(`S&P500: ${sp.meta.regularMarketPrice.toFixed(2)} (前日比 ${d>=0?'+':''}${d.toFixed(2)})`);}
+    lines.push(`PhD準備スコア: ${st.score}/100, 直近7日の研究活動: ${recent}日, 今日のスタート: ${st.startedToday?'済':'未'}`);
+    const tasks=getLT();
+    if(tasks.length)lines.push(`未完了タスク: ${tasks.filter(t=>!t.done).map(t=>t.title).slice(0,5).join(', ')||'なし'}`);
+    return lines.join('\n');
+  }
+
+  async function callLLM(system, user){
+    const key=CFG.AI_API_KEY, model=CFG.AI_MODEL;
+    if(CFG.AI_PROVIDER==='anthropic'){
+      const r=await fetch('https://api.anthropic.com/v1/messages',{
+        method:'POST',
+        headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model,max_tokens:400,system,messages:[{role:'user',content:user}]})
+      });
+      if(!r.ok)throw new Error('anthropic '+r.status+' '+(await r.text()).slice(0,200));
+      const j=await r.json();return j.content.map(c=>c.text||'').join('');
+    }else{
+      const r=await fetch('https://api.openai.com/v1/chat/completions',{
+        method:'POST',
+        headers:{'content-type':'application/json','authorization':'Bearer '+key},
+        body:JSON.stringify({model,max_tokens:400,messages:[{role:'system',content:system},{role:'user',content:user}]})
+      });
+      if(!r.ok)throw new Error('openai '+r.status+' '+(await r.text()).slice(0,200));
+      const j=await r.json();return j.choices[0].message.content;
+    }
+  }
+
+  let _aiBriefRan=false;
+  async function generateAIBriefing(){
+    if(!CFG.AI_API_KEY){renderBrief();return;}
+    if(_aiBriefRan)return; _aiBriefRan=true;
+    const card=document.getElementById('briefCard');
+    card.innerHTML=`${briefTitle}<div class="brief">🤖 ${CFG.AI_PROVIDER==='anthropic'?'Claude':'GPT'} が生成中…</div>`;
+    const name=CFG.USER_NAME||'研究者';
+    const system=`あなたは${name}さん専属の研究・キャリアコーチAIです。博士進学・研究力向上を支援します。`
+      +`提供データをもとに、今朝のパーソナルブリーフィングを日本語で簡潔に作成してください。`
+      +`天気と服装の一言、マーケットの所感、今日やるべき研究アクションの提案、励ましを含めます。`
+      +`箇条書き3〜4項目、各1行、絵文字を文頭に。前置き・締めの挨拶は不要。`;
+    const user=`今日のデータ:\n${buildContext()}\n\n上記からブリーフィングを作成してください。`;
+    try{
+      const txt=await callLLM(system,user);
+      card.innerHTML=`${briefTitle}<div class="brief">${esc(txt).replace(/\n+/g,'<br>')}</div>`;
+    }catch(e){
+      card.innerHTML=`${briefTitle}<div class="brief">${localBrief()}</div>`
+        +`<div style="font-size:10px;color:var(--faint);margin-top:8px">⚠️ AI生成に失敗（${esc(String(e.message||e)).slice(0,80)}）。ローカル要約を表示中。</div>`;
+    }
+  }
+
+  /* ── PhD score / AI Coach ────────────────────────── */
+  function getStats(){
+    const def={score:67,startedToday:false,lastDate:null,history:[],logDates:[]};
+    try{return Object.assign(def,JSON.parse(localStorage.getItem('phd_stats')||'{}'));}catch(_){return def;}
+  }
+  function setStats(s){localStorage.setItem('phd_stats',JSON.stringify(s));}
+  function todayKey(){return `${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}`;}
+
+  const FOCUS=['eHMIの論文を1本読む','実装コードをGitHubにpush','英語でアブストラクトを要約','指導教員候補にメール下書き','関連学会のCFPを確認','研究ログを1段落書く','先週の進捗を振り返る'];
+
+  function renderCoach(){
+    const s=getStats();
+    // reset startedToday if new day
+    if(s.lastDate && s.lastDate!==todayKey()){s.startedToday=false;}
+    const focus=FOCUS[now.getDate()%FOCUS.length];
+    document.getElementById('coachFocus').innerHTML=`${esc(focus)}を推奨します。`;
+    document.getElementById('focusProg').style.width=(s.startedToday?100:0)+'%';
+    const recent=(s.logDates||[]).filter(d=>{const dd=new Date(d);return (Date.now()-dd)<7*864e5;}).length;
+    document.getElementById('coachLog').innerHTML= recent>=4
+      ? `直近7日で<b style="color:#67e8b0">${recent}日</b>活動。good pace！`
+      : `今週は研究活動が少なめ（${recent}日）。<br>ログ記録を習慣化しましょう。`;
+    document.getElementById('phdScore').textContent=s.score;
+    const hist=s.history||[];
+    const tr= hist.length>=2 ? (hist[hist.length-1].score-hist[hist.length-2].score) : 0;
+    document.getElementById('phdTrend').textContent=`前日比 ${tr>=0?'+':''}${tr.toFixed(1)}`;
+    document.getElementById('coachState').innerHTML=s.startedToday?'今日のスタート<br>記録済み ✅':'START を押して<br>今日を記録';
+    document.getElementById('startBtn').innerHTML=s.startedToday?'DONE ✓':'START<br>YOUR DAY';
+    setStats(s);
+  }
+  function startDay(){
+    const s=getStats();
+    const tk=todayKey();
+    if(s.startedToday && s.lastDate===tk){toast('今日はすでにスタート済みです ✅');return;}
+    s.startedToday=true; s.lastDate=tk;
+    s.logDates=[...new Set([...(s.logDates||[]),tk])];
+    s.score=Math.min(100,Math.round((s.score+1.5)*10)/10);
+    s.history=[...(s.history||[]),{date:tk,score:s.score}].slice(-60);
+    setStats(s); renderCoach(); renderBrief();
+    toast('☀️ 今日をスタート！ PhDスコア +1.5');
+  }
+
+  function toast(msg){
+    const t=document.createElement('div');t.className='toast';t.textContent=msg;
+    document.body.appendChild(t);setTimeout(()=>t.classList.add('show'),10);
+    setTimeout(()=>{t.classList.remove('show');setTimeout(()=>t.remove(),300);},2200);
+  }
+
+  /* ── Settings modal ──────────────────────────────── */
+  function openSettings(){
+    const s=getUserSettings();
+    document.getElementById('setName').value=s.USER_NAME??(window.APP_CONFIG?.USER_NAME||'');
+    document.getElementById('setCity').value=s.DEFAULT_CITY??(window.APP_CONFIG?.DEFAULT_CITY||'Atsugi');
+    document.getElementById('setProvider').value=s.AI_PROVIDER||CFG.AI_PROVIDER||'anthropic';
+    document.getElementById('setModel').value=s.AI_MODEL||CFG.AI_MODEL||'claude-3-5-haiku-20241022';
+    document.getElementById('setGid').value=s.GOOGLE_CLIENT_ID??(window.APP_CONFIG?.GOOGLE_CLIENT_ID||'');
+    const keyInput=document.getElementById('setKey');
+    keyInput.value=''; keyInput.placeholder=(s.AI_API_KEY)?'●●●●● 保存済み（変更する場合のみ入力）':'sk-ant-...';
+    document.getElementById('settingsModal').classList.add('show');
+  }
+  function closeSettings(){document.getElementById('settingsModal').classList.remove('show');}
+  function saveSettings(){
+    const patch={
+      USER_NAME:document.getElementById('setName').value.trim(),
+      DEFAULT_CITY:document.getElementById('setCity').value.trim()||'Atsugi',
+      AI_PROVIDER:document.getElementById('setProvider').value,
+      AI_MODEL:document.getElementById('setModel').value.trim()||'claude-3-5-haiku-20241022',
+      GOOGLE_CLIENT_ID:document.getElementById('setGid').value.trim(),
+    };
+    const k=document.getElementById('setKey').value.trim();
+    if(k)patch.AI_API_KEY=k; // 空欄なら既存キーを維持
+    saveUserSettings(patch);
+    localStorage.setItem('city',patch.DEFAULT_CITY);
+    toast('✅ 設定を保存しました');
+    setTimeout(()=>location.reload(),500);
+  }
+  function clearKey(){
+    const s=getUserSettings(); delete s.AI_API_KEY;
+    localStorage.setItem('user_settings',JSON.stringify(s));
+    toast('🗑️ APIキーを削除しました'); setTimeout(()=>location.reload(),500);
+  }
+
+  /* ══ Google integration ══════════════════════════ */
+  const GSCOPES=['https://www.googleapis.com/auth/calendar.readonly','https://www.googleapis.com/auth/gmail.readonly','https://www.googleapis.com/auth/tasks'].join(' ');
+  let tokenClient=null, accessToken=null;
+  function googleReady(){return CFG.GOOGLE_CLIENT_ID && window.google?.accounts?.oauth2;}
+  function initGoogle(){
+    if(!googleReady()){document.getElementById('googleBtn').title='config.js に GOOGLE_CLIENT_ID を設定してください';return;}
+    tokenClient=google.accounts.oauth2.initTokenClient({
+      client_id:CFG.GOOGLE_CLIENT_ID,scope:GSCOPES,
+      callback:r=>{if(r.error)return;accessToken=r.access_token;sessionStorage.setItem('g_token',accessToken);markConnected();loadGoogleData();}
+    });
+    const saved=sessionStorage.getItem('g_token');
+    if(saved){accessToken=saved;markConnected();loadGoogleData();}
+  }
+  function markConnected(){const b=document.getElementById('googleBtn');b.classList.add('active');b.title='Google連携済み';b.textContent='✓';}
+  function handleGoogleAuth(){
+    if(!googleReady()){alert('Google連携を使うには config.js に GOOGLE_CLIENT_ID を設定してください。手順は SETUP.md を参照。');return;}
+    tokenClient.requestAccessToken({prompt:accessToken?'':'consent'});
+  }
+  async function gFetch(url){
+    const r=await fetch(url,{headers:{Authorization:'Bearer '+accessToken}});
+    if(r.status===401){accessToken=null;sessionStorage.removeItem('g_token');throw new Error('401');}
+    if(!r.ok)throw new Error('http');return r.json();
+  }
+  function loadGoogleData(){if(!accessToken)return;loadCalendar();loadGmail();loadTasks();}
+
+  /* Calendar — fills both schedule mini + full calendar card */
+  async function loadCalendar(){
+    const mini=document.getElementById('scheduleCard'), full=document.getElementById('calCard');
+    try{
+      const s=new Date();s.setHours(0,0,0,0);const e=new Date();e.setHours(23,59,59,999);
+      const url=`https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${s.toISOString()}&timeMax=${e.toISOString()}&singleEvents=true&orderBy=startTime`;
+      const data=await gFetch(url);const ev=data.items||[];
+      const fmtT=x=>{if(!x.start.dateTime)return'終日';const t=new Date(x.start.dateTime);return `${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;};
+      // mini summary (max 2)
+      if(!ev.length){
+        mini.innerHTML=`<div class="ctitle"><span class="ico">📅</span>Today's Schedule</div><div class="big-num">0<small> 件</small></div><div class="empty" style="margin-top:6px">予定はありません 🎉</div>`;
+      }else{
+        const top=ev.slice(0,2).map(x=>`<div class="sline"><span class="tm">${fmtT(x)}</span><span class="tt">${esc(x.summary||'(無題)')}</span><span class="arr">›</span></div>`).join('');
+        mini.innerHTML=`<div class="ctitle"><span class="ico">📅</span>Today's Schedule</div><div class="big-num">${ev.length}<small> 件の予定</small></div><div style="margin-top:8px">${top}</div>`;
+      }
+      // full
+      if(!ev.length){
+        full.innerHTML=`<div class="ctitle"><span class="ico">📆</span>Google Calendar</div><div class="empty">今日の予定はありません 🎉</div>`;
+      }else{
+        const rows=ev.map(x=>{const en=x.end?.dateTime?`–${(()=>{const t=new Date(x.end.dateTime);return String(t.getHours()).padStart(2,'0')+':'+String(t.getMinutes()).padStart(2,'0');})()}`:'';
+          return `<div class="sline" style="align-items:flex-start;padding:9px 0"><span class="tm" style="min-width:80px">${fmtT(x)}${en}</span><span class="tt" style="white-space:normal">${esc(x.summary||'(無題)')}${x.location?`<div style="font-size:11px;color:var(--faint)">📍 ${esc(x.location)}</div>`:''}</span></div>`;}).join('');
+        full.innerHTML=`<div class="ctitle"><span class="ico">📆</span>Google Calendar<span class="more" onclick="loadCalendar()">↻</span></div>${rows}<div class="cta" onclick="window.open('https://calendar.google.com','_blank')">カレンダーを開く</div>`;
+      }
+    }catch(e){
+      mini.innerHTML=`<div class="ctitle"><span class="ico">📅</span>Today's Schedule</div><div class="err">取得失敗。再連携してください。</div>`;
+      full.innerHTML=`<div class="ctitle"><span class="ico">📆</span>Google Calendar</div><div class="err">取得失敗。再連携してください。</div>`;
+    }
+  }
+
+  /* Gmail */
+  async function loadGmail(){
+    const card=document.getElementById('mailCard');
+    try{
+      const list=await gFetch('https://gmail.googleapis.com/gmail/v1/users/me/messages?q=is:unread+in:inbox&maxResults=5');
+      const ids=(list.messages||[]).map(m=>m.id);
+      if(!ids.length){card.innerHTML=`<div class="ctitle"><span class="ico">📧</span>Gmail</div><div class="mail-big"><div class="n">0</div><div class="u">未読メールはありません 📭</div></div>`;return;}
+      const msgs=await Promise.all(ids.map(id=>gFetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject`)));
+      const li=msgs.slice(0,3).map(m=>{const hs=m.payload.headers;const from=(hs.find(h=>h.name==='From')?.value||'').replace(/<.*>/,'').replace(/"/g,'').trim();const subj=hs.find(h=>h.name==='Subject')?.value||'(件名なし)';return `<li><b>${esc(from||'—')}</b> — ${esc(subj)}</li>`;}).join('');
+      card.innerHTML=`<div class="ctitle"><span class="ico">📧</span>Gmail<span class="more" onclick="loadGmail()">↻</span></div>
+        <div class="mail-big"><div class="n">${ids.length}</div><div class="u">件の未読</div></div>
+        <ul class="mlist">${li}</ul>
+        <div class="cta" onclick="window.open('https://mail.google.com','_blank')">受信トレイを開く</div>`;
+    }catch(e){
+      card.innerHTML=`<div class="ctitle"><span class="ico">📧</span>Gmail</div><div class="err">取得失敗。再連携してください。</div>`;
+    }
+  }
+
+  /* Tasks (Google + local fallback) */
+  let taskListId=null;
+  async function loadTasks(){
+    if(!accessToken){renderLocalTasks();return;}
+    try{
+      const lists=await gFetch('https://www.googleapis.com/tasks/v1/users/@me/lists');
+      taskListId=lists.items?.[0]?.id;if(!taskListId)throw 0;
+      const data=await gFetch(`https://www.googleapis.com/tasks/v1/lists/${taskListId}/tasks?showCompleted=true&showHidden=false`);
+      renderTasks((data.items||[]).map(t=>({id:t.id,title:t.title||'',done:t.status==='completed'})),true);
+    }catch(e){renderLocalTasks();}
+  }
+  function renderTasks(tasks,isG){
+    const card=document.getElementById('tasksCard');
+    tasks.sort((a,b)=>a.done-b.done);
+    const done=tasks.filter(t=>t.done).length, total=tasks.length;
+    const pct=total?Math.round(done/total*100):0;
+    const items=tasks.map(t=>`<li class="titem ${t.done?'done':''}" onclick="${isG?`toggleGTask('${t.id}',${t.done})`:`toggleLTask(${t._i})`}">
+      <span class="ck">${t.done?'✓':''}</span><span class="tx">${esc(t.title)}</span></li>`).join('');
+    card.innerHTML=`<div class="ctitle"><span class="ico">✅</span>Today's Tasks</div>
+      <div class="big-num" style="font-size:20px">${done}<small> / ${total} 完了</small></div>
+      <div class="progress"><i style="width:${pct}%"></i></div>
+      <ul class="tlist">${items||'<li class="empty">タスクを追加しましょう</li>'}</ul>
+      <div class="tadd"><input id="newTask" placeholder="タスクを追加…" onkeydown="if(event.key==='Enter')addTask()"><button onclick="addTask()">＋</button></div>`;
+  }
+  async function toggleGTask(id,was){if(!accessToken||!taskListId)return;try{await fetch(`https://www.googleapis.com/tasks/v1/lists/${taskListId}/tasks/${id}`,{method:'PATCH',headers:{Authorization:'Bearer '+accessToken,'Content-Type':'application/json'},body:JSON.stringify({status:was?'needsAction':'completed',completed:was?null:new Date().toISOString()})});loadTasks();}catch(_){}}
+  async function addTask(){
+    const inp=document.getElementById('newTask');const v=inp.value.trim();if(!v)return;
+    if(accessToken&&taskListId){try{await fetch(`https://www.googleapis.com/tasks/v1/lists/${taskListId}/tasks`,{method:'POST',headers:{Authorization:'Bearer '+accessToken,'Content-Type':'application/json'},body:JSON.stringify({title:v})});inp.value='';loadTasks();return;}catch(_){}}
+    addLocalTask(v);inp.value='';
+  }
+  function getLT(){try{return JSON.parse(localStorage.getItem('tasks')||'[]');}catch(_){return[];}}
+  function setLT(t){localStorage.setItem('tasks',JSON.stringify(t));}
+  function renderLocalTasks(){const t=getLT().map((x,i)=>({...x,_i:i}));renderTasks(t,false);}
+  function addLocalTask(title){const t=getLT();t.push({title,done:false});setLT(t);renderLocalTasks();}
+  function toggleLTask(i){const t=getLT();t[i].done=!t[i].done;setLT(t);renderLocalTasks();}
+
+  /* ══ Notify (8:55) ═══════════════════════════════ */
+  function updateNotifyBtn(){const b=document.getElementById('notifyBtn');if(localStorage.getItem('notify')==='on'&&Notification.permission==='granted'){b.classList.add('active');b.title='8:55通知 ON';}else{b.classList.remove('active');b.title='8:55通知';}}
+  async function toggleNotify(){
+    if(localStorage.getItem('notify')==='on'){localStorage.setItem('notify','off');updateNotifyBtn();toast('🔕 通知をOFFにしました');return;}
+    if(!('Notification'in window)){alert('この端末は通知に対応していません。');return;}
+    const p=await Notification.requestPermission();
+    if(p==='granted'){localStorage.setItem('notify','on');updateNotifyBtn();scheduleNotify();toast('🔔 毎朝8:55に通知します');}
+    else alert('通知が許可されませんでした。');
+  }
+  let notifyTimer=null;
+  function scheduleNotify(){
+    if(notifyTimer)clearTimeout(notifyTimer);
+    if(localStorage.getItem('notify')!=='on')return;
+    const t=new Date();const tg=new Date();tg.setHours(CFG.BRIEF_HOUR||8,CFG.BRIEF_MINUTE||55,0,0);if(tg<=t)tg.setDate(tg.getDate()+1);
+    notifyTimer=setTimeout(()=>{if(Notification.permission==='granted'&&localStorage.getItem('notify')==='on'){loadAll();new Notification('☀️ おはようございます',{body:'今日のブリーフィングをチェック！',icon:'icons/icon-192.png'});}scheduleNotify();},tg-t);
+  }
+
+  /* ══ Boot ════════════════════════════════════════ */
+  function loadAll(){
+    const city=document.getElementById('cityInput').value.trim()||CFG.DEFAULT_CITY||'Tokyo';
+    localStorage.setItem('city',city);
+    _aiBriefRan=false;
+    const wp=loadWeather(city); const mp=loadMarket();
+    loadNews(); loadResearch();
+    renderQuote(); renderCareer(); renderCoach(); renderBrief();
+    Promise.allSettled([wp,mp]).then(()=>generateAIBriefing());
+    if(accessToken)loadGoogleData(); else { renderLocalTasks();
+      document.getElementById('scheduleCard').innerHTML=`<div class="ctitle"><span class="ico">📅</span>Today's Schedule</div><div class="empty">👤 を押して Google 連携すると<br>予定を表示します。</div>`;
+      document.getElementById('calCard').innerHTML=`<div class="ctitle"><span class="ico">📆</span>Google Calendar</div><div class="empty">Google連携で今日の予定を表示します。</div>`;
+      document.getElementById('mailCard').innerHTML=`<div class="ctitle"><span class="ico">📧</span>Gmail</div><div class="empty">Google連携で未読メールを表示します。</div>`;
+    }
+    const t=new Date();document.getElementById('lastUpdated').textContent=`最終更新: ${t.getFullYear()}/${String(t.getMonth()+1).padStart(2,'0')}/${String(t.getDate()).padStart(2,'0')} ${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;
+  }
+
+  renderLocalTasks(); renderCoach(); loadAll(); updateNotifyBtn(); scheduleNotify();
+
+  (function wait(n=0){
+    if(window.google?.accounts?.oauth2){initGoogle();}
+    else if(!CFG.GOOGLE_CLIENT_ID){initGoogle();}
+    else if(n<100){setTimeout(()=>wait(n+1),150);}
+    else{const s=document.createElement('script');s.src='https://accounts.google.com/gsi/client';s.onload=()=>{if(window.google?.accounts?.oauth2)initGoogle();};document.head.appendChild(s);}
+  })();
+
+  if('serviceWorker'in navigator){navigator.serviceWorker.register('sw.js').catch(()=>{});}
+</script>
+</body>
+</html>
