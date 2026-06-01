@@ -341,9 +341,9 @@
     <!-- Row 1 -->
     <div class="card" id="weatherCard"><div class="ctitle"><span class="ico">🌤</span>天気</div><div class="loading">読み込み中…</div></div>
 
-    <div class="card" id="scheduleCard"><div class="ctitle"><span class="ico">📅</span>Today's Schedule</div><div class="loading">読み込み中…</div></div>
-
     <div class="card" id="tasksCard"><div class="ctitle"><span class="ico">✅</span>Today's Tasks</div><div class="loading">読み込み中…</div></div>
+
+    <div class="card" id="outfitCard"><div class="ctitle"><span class="ico">👕</span>今日の服装</div><div class="loading">天気を取得中…</div></div>
 
     <div class="card" id="briefCard"><div class="ctitle"><span class="ico">🗂</span>AI Briefing<span class="new">NEW</span></div><div class="loading">生成中…</div></div>
 
@@ -351,13 +351,6 @@
     <div class="card span2" id="marketCard"><div class="ctitle"><span class="ico">📊</span>Market Overview</div><div class="loading">読み込み中…</div></div>
 
     <div class="card span2" id="newsCard"><div class="ctitle"><span class="ico">⚡</span>News Flash</div><div class="loading">読み込み中…</div></div>
-
-    <!-- Row 3 -->
-    <div class="card" id="calCard"><div class="ctitle"><span class="ico">📆</span>Google Calendar</div><div class="loading">読み込み中…</div></div>
-
-    <div class="card" id="mailCard"><div class="ctitle"><span class="ico">📧</span>Gmail</div><div class="loading">読み込み中…</div></div>
-
-    <div class="card" id="outfitCard"><div class="ctitle"><span class="ico">👕</span>今日の服装</div><div class="loading">天気を取得中…</div></div>
 
     <div class="card quote-card" id="quoteCard"><div class="ctitle"><span class="ico">⭐</span>今日の一言</div><div class="loading">…</div></div>
 
@@ -1020,7 +1013,7 @@
   }
 
   /* ══ Google integration ══════════════════════════ */
-  const GSCOPES=['https://www.googleapis.com/auth/calendar.readonly','https://www.googleapis.com/auth/gmail.readonly','https://www.googleapis.com/auth/tasks'].join(' ');
+  const GSCOPES=['https://www.googleapis.com/auth/tasks'].join(' ');
   let tokenClient=null, accessToken=null;
   function googleReady(){return CFG.GOOGLE_CLIENT_ID && window.google?.accounts?.oauth2;}
   function initGoogle(){
@@ -1042,54 +1035,7 @@
     if(r.status===401){accessToken=null;sessionStorage.removeItem('g_token');throw new Error('401');}
     if(!r.ok)throw new Error('http');return r.json();
   }
-  function loadGoogleData(){if(!accessToken)return;loadCalendar();loadGmail();loadTasks();}
-
-  /* Calendar — fills both schedule mini + full calendar card */
-  async function loadCalendar(){
-    const mini=document.getElementById('scheduleCard'), full=document.getElementById('calCard');
-    try{
-      const s=new Date();s.setHours(0,0,0,0);const e=new Date();e.setHours(23,59,59,999);
-      const url=`https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${s.toISOString()}&timeMax=${e.toISOString()}&singleEvents=true&orderBy=startTime`;
-      const data=await gFetch(url);const ev=data.items||[];
-      const fmtT=x=>{if(!x.start.dateTime)return'終日';const t=new Date(x.start.dateTime);return `${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;};
-      // mini summary (max 2)
-      if(!ev.length){
-        mini.innerHTML=`<div class="ctitle"><span class="ico">📅</span>Today's Schedule</div><div class="big-num">0<small> 件</small></div><div class="empty" style="margin-top:6px">予定はありません 🎉</div>`;
-      }else{
-        const top=ev.slice(0,2).map(x=>`<div class="sline"><span class="tm">${fmtT(x)}</span><span class="tt">${esc(x.summary||'(無題)')}</span><span class="arr">›</span></div>`).join('');
-        mini.innerHTML=`<div class="ctitle"><span class="ico">📅</span>Today's Schedule</div><div class="big-num">${ev.length}<small> 件の予定</small></div><div style="margin-top:8px">${top}</div>`;
-      }
-      // full
-      if(!ev.length){
-        full.innerHTML=`<div class="ctitle"><span class="ico">📆</span>Google Calendar</div><div class="empty">今日の予定はありません 🎉</div>`;
-      }else{
-        const rows=ev.map(x=>{const en=x.end?.dateTime?`–${(()=>{const t=new Date(x.end.dateTime);return String(t.getHours()).padStart(2,'0')+':'+String(t.getMinutes()).padStart(2,'0');})()}`:'';
-          return `<div class="sline" style="align-items:flex-start;padding:9px 0"><span class="tm" style="min-width:80px">${fmtT(x)}${en}</span><span class="tt" style="white-space:normal">${esc(x.summary||'(無題)')}${x.location?`<div style="font-size:11px;color:var(--faint)">📍 ${esc(x.location)}</div>`:''}</span></div>`;}).join('');
-        full.innerHTML=`<div class="ctitle"><span class="ico">📆</span>Google Calendar<span class="more" onclick="loadCalendar()">↻</span></div>${rows}<div class="cta" onclick="window.open('https://calendar.google.com','_blank')">カレンダーを開く</div>`;
-      }
-    }catch(e){
-      mini.innerHTML=`<div class="ctitle"><span class="ico">📅</span>Today's Schedule</div><div class="err">取得失敗。再連携してください。</div>`;
-      full.innerHTML=`<div class="ctitle"><span class="ico">📆</span>Google Calendar</div><div class="err">取得失敗。再連携してください。</div>`;
-    }
-  }
-
-  /* Gmail */
-  async function loadGmail(){
-    const card=document.getElementById('mailCard');
-    try{
-      const list=await gFetch('https://gmail.googleapis.com/gmail/v1/users/me/messages?q=is:unread+in:inbox&maxResults=5');
-      const ids=(list.messages||[]).map(m=>m.id);
-      if(!ids.length){card.innerHTML=`<div class="ctitle"><span class="ico">📧</span>Gmail</div><div class="mail-big"><div class="n">0</div><div class="u">未読メールはありません 📭</div></div>`;return;}
-      const msgs=await Promise.all(ids.map(id=>gFetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject`)));
-      const li=msgs.slice(0,3).map(m=>{const hs=m.payload.headers;const from=(hs.find(h=>h.name==='From')?.value||'').replace(/<.*>/,'').replace(/"/g,'').trim();const subj=hs.find(h=>h.name==='Subject')?.value||'(件名なし)';return `<li><b>${esc(from||'—')}</b> — ${esc(subj)}</li>`;}).join('');
-      card.innerHTML=`<div class="ctitle"><span class="ico">📧</span>Gmail<span class="more" onclick="loadGmail()">↻</span></div>
-        <div class="mail-big"><div class="n">${ids.length}</div><div class="u">件の未読</div></div>
-        <ul class="mlist">${li}</ul>
-        <div class="cta" onclick="window.open('https://mail.google.com','_blank')">受信トレイを開く</div>`;
-    }catch(e){
-      card.innerHTML=`<div class="ctitle"><span class="ico">📧</span>Gmail</div><div class="err">取得失敗。再連携してください。</div>`;
-    }
-  }
+  function loadGoogleData(){if(!accessToken)return;loadTasks();}
 
   /* Tasks (Google + local fallback) */
   let taskListId=null;
@@ -1156,11 +1102,7 @@
     try{renderCoach();}catch(e){console.error(e);}
     try{renderBrief();}catch(e){console.error(e);}
     Promise.allSettled([wp,mp]).then(()=>{try{generateAIBriefing();}catch(e){console.error(e);}});
-    if(accessToken){try{loadGoogleData();}catch(e){console.error(e);}} else { renderLocalTasks();
-      document.getElementById('scheduleCard').innerHTML=`<div class="ctitle"><span class="ico">📅</span>Today's Schedule</div><div class="empty">👤 を押して Google 連携すると<br>予定を表示します。</div>`;
-      document.getElementById('calCard').innerHTML=`<div class="ctitle"><span class="ico">📆</span>Google Calendar</div><div class="empty">Google連携で今日の予定を表示します。</div>`;
-      document.getElementById('mailCard').innerHTML=`<div class="ctitle"><span class="ico">📧</span>Gmail</div><div class="empty">Google連携で未読メールを表示します。</div>`;
-    }
+    if(accessToken){try{loadGoogleData();}catch(e){console.error(e);}} else { renderLocalTasks(); }
     const t=new Date();document.getElementById('lastUpdated').textContent=`最終更新: ${t.getFullYear()}/${String(t.getMonth()+1).padStart(2,'0')}/${String(t.getDate()).padStart(2,'0')} ${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;
   }
 
