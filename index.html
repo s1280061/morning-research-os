@@ -410,15 +410,15 @@
 
     <div class="fld-h">🤖 AI Briefing</div>
     <label class="fld">プロバイダ
-      <select id="setProvider">
+      <select id="setProvider" onchange="onProviderChange()">
+        <option value="groq">Groq (高速・推奨)</option>
         <option value="grok">xAI (Grok)</option>
-        <option value="groq">Groq (Llama/Mixtral)</option>
         <option value="openai">OpenAI (GPT)</option>
         <option value="anthropic">Anthropic (Claude)</option>
       </select>
     </label>
     <label class="fld">モデル
-      <input id="setModel" placeholder="grok-4.3">
+      <select id="setModel"></select>
     </label>
     <label class="fld">APIキー（sk-... / sk-ant-...）
       <input id="setKey" type="password" placeholder="保存済みの場合は ●●● 表示">
@@ -1014,12 +1014,38 @@
   }
 
   /* ── Settings modal ──────────────────────────────── */
+  // プロバイダ別のモデル候補（表示名 → モデルID）
+  const MODELS_BY_PROVIDER={
+    groq:[
+      ['GPT OSS 120B（推奨・高品質）','openai/gpt-oss-120b'],
+      ['GPT OSS 20B（軽量・高速）','openai/gpt-oss-20b'],
+      ['Llama 3.3 70B','llama-3.3-70b-versatile'],
+      ['Llama 4 Scout','meta-llama/llama-4-scout-17b-16e-instruct'],
+      ['Qwen 3 32B','qwen/qwen3-32b'],
+    ],
+    grok:[['Grok 2 (latest)','grok-2-latest'],['Grok 2','grok-2'],['Grok Beta','grok-beta']],
+    openai:[['GPT-4o mini','gpt-4o-mini'],['GPT-4o','gpt-4o'],['GPT-4.1 mini','gpt-4.1-mini']],
+    anthropic:[['Claude 3.5 Sonnet','claude-3-5-sonnet-20241022'],['Claude 3.5 Haiku','claude-3-5-haiku-20241022']],
+  };
+  function fillModelOptions(provider,selected){
+    const sel=document.getElementById('setModel');
+    const list=MODELS_BY_PROVIDER[provider]||MODELS_BY_PROVIDER.groq;
+    sel.innerHTML=list.map(([label,id])=>`<option value="${id}">${label}</option>`).join('');
+    // 保存済みモデルがあれば選択。候補に無ければ先頭。
+    if(selected && list.some(([,id])=>id===selected)) sel.value=selected;
+    else sel.value=list[0][1];
+  }
+  function onProviderChange(){
+    const p=document.getElementById('setProvider').value;
+    fillModelOptions(p,null); // プロバイダ変更時は候補の先頭を選択
+  }
   function openSettings(){
     const s=getUserSettings();
     document.getElementById('setName').value=s.USER_NAME??(window.APP_CONFIG?.USER_NAME||'');
     document.getElementById('setCity').value=s.DEFAULT_CITY??(window.APP_CONFIG?.DEFAULT_CITY||'Atsugi');
-    document.getElementById('setProvider').value=s.AI_PROVIDER||CFG.AI_PROVIDER||'grok';
-    document.getElementById('setModel').value=s.AI_MODEL||CFG.AI_MODEL||'grok-4.3';
+    const prov=s.AI_PROVIDER||CFG.AI_PROVIDER||'groq';
+    document.getElementById('setProvider').value=prov;
+    fillModelOptions(prov, s.AI_MODEL||CFG.AI_MODEL||'');
     document.getElementById('setGid').value=s.GOOGLE_CLIENT_ID??(window.APP_CONFIG?.GOOGLE_CLIENT_ID||'');
     const keyInput=document.getElementById('setKey');
     keyInput.value=''; keyInput.placeholder=(s.AI_API_KEY)?'●●●●● 保存済み（変更する場合のみ入力）':'gsk_...';
@@ -1031,7 +1057,7 @@
       USER_NAME:document.getElementById('setName').value.trim(),
       DEFAULT_CITY:document.getElementById('setCity').value.trim()||'Atsugi',
       AI_PROVIDER:document.getElementById('setProvider').value,
-      AI_MODEL:document.getElementById('setModel').value.trim()||'grok-4.3',
+      AI_MODEL:document.getElementById('setModel').value,
       GOOGLE_CLIENT_ID:document.getElementById('setGid').value.trim(),
     };
     const k=document.getElementById('setKey').value.trim();
