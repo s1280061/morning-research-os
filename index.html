@@ -412,16 +412,13 @@
     <label class="fld">プロバイダ
       <select id="setProvider" onchange="onProviderChange()">
         <option value="groq">Groq (高速・推奨)</option>
-        <option value="grok">xAI (Grok)</option>
-        <option value="openai">OpenAI (GPT)</option>
-        <option value="anthropic">Anthropic (Claude)</option>
       </select>
     </label>
     <label class="fld">モデル
       <select id="setModel"></select>
     </label>
-    <label class="fld">APIキー（sk-... / sk-ant-...）
-      <input id="setKey" type="password" placeholder="保存済みの場合は ●●● 表示">
+    <label class="fld">APIキー（Groq: gsk_... ／ <a href="https://console.groq.com/keys" target="_blank" rel="noopener" style="color:var(--blue)">取得はこちら</a>）
+      <input id="setKey" type="password" placeholder="gsk_... 保存済みの場合は ●●● 表示">
     </label>
     <div class="modal-note" style="margin-top:6px">⚠️ 公開サイトでAIを使うと、このキーはあなたのブラウザに保存され安全です。他の人には共有されません。</div>
 
@@ -451,6 +448,20 @@
     Object.assign(CFG,s);
     return s;
   }
+  // 旧設定の自動修復：プロバイダはGroq固定。接頭辞なし/別プロバイダ用の古いモデルIDを正す。
+  (function migrateSettings(){
+    const s=getUserSettings(); let changed=false;
+    if(s.AI_PROVIDER && s.AI_PROVIDER!=='groq'){ s.AI_PROVIDER='groq'; changed=true; }
+    const FIX={'gpt-oss-120b':'openai/gpt-oss-120b','gpt-oss-20b':'openai/gpt-oss-20b',
+      'llama-4-scout':'meta-llama/llama-4-scout-17b-16e-instruct','qwen3-32b':'qwen/qwen3-32b','qwen-3-32b':'qwen/qwen3-32b'};
+    if(s.AI_MODEL && FIX[s.AI_MODEL]){ s.AI_MODEL=FIX[s.AI_MODEL]; changed=true; }
+    // Groqモデルでない古い値（grok-/claude-/gpt-4 等）は推奨モデルへ
+    if(s.AI_MODEL && !/\//.test(s.AI_MODEL) && !/gpt-oss|llama|mixtral|gemma|qwen/i.test(s.AI_MODEL)){
+      s.AI_MODEL='openai/gpt-oss-120b'; changed=true;
+    }
+    if(changed){ localStorage.setItem('user_settings',JSON.stringify(s)); Object.assign(CFG,s); }
+  })();
+  CFG.AI_PROVIDER='groq'; // このアプリはGroq専用
 
   /* ── greeting / hero ─────────────────────────────── */
   const now = new Date();
@@ -991,8 +1002,8 @@
     }
     return {key,provider,model};
   }
-  async function callLLM(system, user, maxTokens=400){
-    const {key,provider,model}=resolveLLM();
+  async function callLLM(system, user, maxTokens=400, modelOverride){
+    const r0=resolveLLM(); const key=r0.key, provider=r0.provider, model=modelOverride||r0.model;
     if(provider==='groq'){
       const r=await fetch('https://api.groq.com/openai/v1/chat/completions',{
         method:'POST',
@@ -1029,13 +1040,24 @@
   }
   // LLM呼び出しを直列化＋429リトライ。複数カードの同時生成でレート制限に当たるのを防ぐ。
   let _llmQueue=Promise.resolve();
+  // Groqは各モデルが別枠。120Bが429(枠切れ)なら20B→70Bへ自動フォールバック。
+  const GROQ_FALLBACKS=['openai/gpt-oss-20b','llama-3.3-70b-versatile','openai/gpt-oss-120b'];
   function callLLMQueued(system,user,maxTokens=400){
     const run=async()=>{
+      const r0=resolveLLM();
+      const models = r0.provider==='groq'
+        ? [r0.model, ...GROQ_FALLBACKS].filter((v,i,a)=>a.indexOf(v)===i)
+        : [r0.model];
       let lastErr;
-      for(let i=0;i<3;i++){
-        try{const out=await callLLM(system,user,maxTokens);if(out&&out.trim())return out;/* 空応答はリトライ */}
-        catch(e){lastErr=e;const m=String(e&&e.message||e);if(!/\b429\b/.test(m))throw e;/* 429のみリトライ */}
-        await new Promise(r=>setTimeout(r,1000*(i+1)));
+      for(const m of models){
+        for(let i=0;i<2;i++){
+          try{const out=await callLLM(system,user,maxTokens,m);if(out&&out.trim())return out;}
+          catch(e){lastErr=e;const msg=String(e&&e.message||e);
+            if(/\b429\b/.test(msg))break;        // この枠は切れ→次モデルへ
+            if(/\b5\d\d\b/.test(msg)&&i<1){await new Promise(r=>setTimeout(r,1000));continue;}
+            throw e;}
+          await new Promise(r=>setTimeout(r,800)); // 空応答リトライ
+        }
       }
       if(lastErr)throw lastErr;
       throw new Error('empty response');
