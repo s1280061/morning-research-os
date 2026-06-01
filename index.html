@@ -420,7 +420,7 @@
     <label class="fld">APIキー（Groq: gsk_... ／ <a href="https://console.groq.com/keys" target="_blank" rel="noopener" style="color:var(--blue)">取得はこちら</a>）
       <input id="setKey" type="password" placeholder="gsk_... 保存済みの場合は ●●● 表示">
     </label>
-    <div class="modal-note" style="margin-top:6px">⚠️ 公開サイトでAIを使うと、このキーはあなたのブラウザに保存され安全です。他の人には共有されません。</div>
+    <div class="modal-note" style="margin-top:6px">🔐 推奨：Vercelの環境変数 <b>GROQ_API_KEY</b> を設定すると、このアプリはバックエンド経由でAIを呼ぶためブラウザにキー入力は<b>不要</b>です（最も安全）。サーバ未設定時のみ、ここに入力したキー（この端末内のみ保存）で動作します。</div>
 
     <div class="fld-h">📅 Google 連携（任意）</div>
     <label class="fld">OAuth クライアントID
@@ -462,6 +462,9 @@
     if(changed){ localStorage.setItem('user_settings',JSON.stringify(s)); Object.assign(CFG,s); }
   })();
   CFG.AI_PROVIDER='groq'; // このアプリはGroq専用
+  // AIが使えるか＝サーバ側にキーがある(_backendReady) or ブラウザにキーがある
+  window._backendReady=false;
+  function aiAvailable(){ return !!window._backendReady || !!CFG.AI_API_KEY; }
 
   /* ── greeting / hero ─────────────────────────────── */
   const now = new Date();
@@ -611,7 +614,7 @@
     return `<div class="brief" style="margin-top:10px">${tips.join('<br>')}</div>`;
   }
   async function trendAdviceHtmlAuto(){
-    if(!CFG.AI_API_KEY) return trendAdviceHtml();
+    if(!aiAvailable()) return trendAdviceHtml();
     try{
       const news=_latestNewsItems.slice(0,3).map(x=>x.title).filter(Boolean).join('\n');
       const papers=_latestResearchItems.slice(0,3).map(x=>x.title).filter(Boolean).join('\n');
@@ -640,7 +643,7 @@
       <span style="color:var(--faint);font-size:11px">※ AIキー設定でより精緻な動向予測になります</span></div>`;
   }
   async function researchTrendsAuto(){
-    if(!CFG.AI_API_KEY) return researchTrendsLocal();
+    if(!aiAvailable()) return researchTrendsLocal();
     try{
       const papers=_latestResearchItems.slice(0,6).map((x,i)=>`${i+1}. ${x.title}`).filter(Boolean).join('\n');
       if(!papers) return researchTrendsLocal();
@@ -688,7 +691,7 @@
       card.innerHTML=`<div class="ctitle"><span class="ico">⚡</span>News Flash<span class="more" onclick="loadNews()">↻</span></div>`
         +section('🇯🇵 国内',jp)+section('🌍 世界',world)
         +`<div class="trend-box" style="margin-top:12px"><div class="trend-h">📰 最近のニュースの傾向</div>`
-        +`<div id="newsTrendSlot"><div class="brief">${CFG.AI_API_KEY?'傾向を分析中…':'⚙️設定でAIキーを入れると傾向の要約が出ます。'}</div></div></div>`;
+        +`<div id="newsTrendSlot"><div class="brief">${aiAvailable()?'傾向を分析中…':'⚙️設定でAIキーを入れると傾向の要約が出ます。'}</div></div></div>`;
       newsTrendAuto().then(h=>{const s=document.getElementById('newsTrendSlot');if(s)s.innerHTML=h;}).catch(()=>{});
     }catch(_){
       card.innerHTML=`<div class="ctitle"><span class="ico">⚡</span>News Flash</div><div class="err">ニュースの取得に失敗しました。</div>`;
@@ -722,7 +725,7 @@
     return `<div class="brief">${t?esc(t):'ニュースを取得してから傾向を要約します。'}<br><span style="color:var(--faint);font-size:11px">※ AIキー設定で傾向の自然文要約になります</span></div>`;
   }
   async function newsTrendAuto(){
-    if(!CFG.AI_API_KEY) return newsTrendLocal();
+    if(!aiAvailable()) return newsTrendLocal();
     try{
       const jp=_latestNewsItems.filter(x=>x.region==='国内').map(x=>'・'+x.title).join('\n')||'なし';
       const world=_latestNewsItems.filter(x=>x.region==='世界').map(x=>'・'+x.title).join('\n')||'なし';
@@ -788,7 +791,7 @@
   function wireResearchAI(){
     researchTrendsAuto().then(trends=>{const s=document.getElementById('researchTrendsSlot');if(s)s.innerHTML=trends;}).catch(()=>{});
     trendAdviceHtmlAuto().then(advice=>{const s=document.getElementById('researchAdviceSlot');if(s)s.outerHTML=advice;}).catch(()=>{});
-    if(CFG.AI_API_KEY && document.getElementById('careerAdviceSlot')){
+    if(aiAvailable() && document.getElementById('careerAdviceSlot')){
       careerAdviceAuto().then(html=>{const s=document.getElementById('careerAdviceSlot');if(s)s.innerHTML=html;}).catch(()=>{});
     }
   }
@@ -928,8 +931,8 @@
     }).join('');
     card.innerHTML=`<div class="ctitle"><span class="ico">💼</span>Career Radar</div>${html}
       <div class="trend-box" style="margin-top:12px"><div class="trend-h">🏢 企業別まとめ＆あなた専用アドバイス</div>
-        <div id="careerAdviceSlot"><div class="brief">${CFG.AI_API_KEY?'各社の動向とあなたのプロフィールを分析中…':'⚙️設定でAIキーを入れると、各社まとめ＋あなた専用の助言が出ます。'}</div></div></div>`;
-    if(CFG.AI_API_KEY) careerAdviceAuto().then(html=>{const s=document.getElementById('careerAdviceSlot');if(s)s.innerHTML=html;}).catch(()=>{});
+        <div id="careerAdviceSlot"><div class="brief">${aiAvailable()?'各社の動向とあなたのプロフィールを分析中…':'⚙️設定でAIキーを入れると、各社まとめ＋あなた専用の助言が出ます。'}</div></div></div>`;
+    if(aiAvailable()) careerAdviceAuto().then(html=>{const s=document.getElementById('careerAdviceSlot');if(s)s.innerHTML=html;}).catch(()=>{});
   }
   // 各社まとめ ＋ ペルソナ向けキャリア助言を生成
   async function careerAdviceAuto(){
@@ -1004,6 +1007,17 @@
   }
   async function callLLM(system, user, maxTokens=400, modelOverride){
     const r0=resolveLLM(); const key=r0.key, provider=r0.provider, model=modelOverride||r0.model;
+    // ① バックエンド経由（APIキーはサーバ環境変数 GROQ_API_KEY）。ブラウザにキー不要・安全。
+    if(window._backendReady){
+      const rb=await fetch('/api/chat',{method:'POST',headers:{'content-type':'application/json'},
+        body:JSON.stringify({system,user,model,maxTokens})});
+      if(rb.status===429) throw new Error('groq 429 (backend rate_limited)');
+      if(rb.ok){ const j=await rb.json(); return j.reply||''; }
+      if(rb.status!==501) throw new Error('backend '+rb.status+' '+(await rb.text()).slice(0,160));
+      // 501=サーバにキー未設定 → 下のクライアントキー方式へフォールバック
+    }
+    // ② クライアントキー直叩き（ローカル開発／サーバにキー未設定時）
+    if(!key) throw new Error('APIキー未設定（サーバ環境変数 GROQ_API_KEY か ⚙️設定 のいずれか）');
     if(provider==='groq'){
       const r=await fetch('https://api.groq.com/openai/v1/chat/completions',{
         method:'POST',
@@ -1074,7 +1088,7 @@
 
   let _aiBriefRan=false;
   async function generateAIBriefing(){
-    if(!CFG.AI_API_KEY){renderBrief();return;}
+    if(!aiAvailable()){renderBrief();return;}
     if(_aiBriefRan)return; _aiBriefRan=true;
     const card=document.getElementById('briefCard');
     const pv=resolveLLM().provider;
@@ -1301,7 +1315,17 @@
     const t=new Date();document.getElementById('lastUpdated').textContent=`最終更新: ${t.getFullYear()}/${String(t.getMonth()+1).padStart(2,'0')}/${String(t.getDate()).padStart(2,'0')} ${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;
   }
 
-  renderLocalTasks(); renderCoach(); loadAll(); updateNotifyBtn(); scheduleNotify();
+  renderLocalTasks(); renderCoach(); updateNotifyBtn(); scheduleNotify();
+  // バックエンド(/api/chat)にサーバ側キーがあるか確認してから初回ロード。
+  // これでサーバキー運用時はブラウザにキー無しでもAIが動く。ローカル等で未配備なら即フォールバック。
+  (function bootLoad(){
+    const done=()=>{ if(bootLoad._ran)return; bootLoad._ran=true; loadAll(); };
+    const ac=new AbortController(); const t=setTimeout(()=>{ac.abort();},2500);
+    fetch('/api/chat',{method:'GET',signal:ac.signal})
+      .then(r=>r.ok?r.json():null).then(j=>{ window._backendReady=!!(j&&j.ready); })
+      .catch(()=>{}).finally(()=>{ clearTimeout(t); done(); });
+    setTimeout(done,2600); // 念のためのフォールバック
+  })();
   // データ系は短い間隔で自動更新（リアルタイム性重視）
   setInterval(()=>{try{const c=document.getElementById('cityInput').value.trim()||CFG.DEFAULT_CITY;loadWeather(c);loadMarket();}catch(_){}}, 5*60*1000);
   setInterval(()=>{try{loadNews();}catch(_){}}, 10*60*1000);
