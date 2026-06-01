@@ -355,7 +355,7 @@
     <div class="card quote-card" id="quoteCard"><div class="ctitle"><span class="ico">⭐</span>今日の一言</div><div class="loading">…</div></div>
 
     <!-- Row 4 -->
-    <div class="card span2" id="researchCard"><div class="ctitle"><span class="ico">🛰</span>Research Radar<span class="more" onclick="loadResearch()">↻</span></div><div class="loading">arXiv から取得中…</div></div>
+    <div class="card span2" id="researchCard"><div class="ctitle"><span class="ico">🛰</span>Research Radar<span class="more" onclick="loadResearch()">↻</span></div><div class="loading">論文を取得中…</div></div>
 
     <div class="card span2" id="careerCard"><div class="ctitle"><span class="ico">💼</span>Career Radar</div><div class="loading">…</div></div>
 
@@ -780,11 +780,47 @@
   }
   function paperItemHTML(it){
     const ago=it.date?timeAgo(it.date):'';
+    const tag=it.source?it.source:('arXiv '+(it.aid||''));
     return `<div class="ritem barL">
       <span class="rtm">${ago}</span>
-      <div class="rid">arXiv ${it.aid||''}</div>
+      <div class="rid">${esc(tag)}</div>
       <a class="rt" href="${it.link}" target="_blank" rel="noopener">${esc(it.title)}</a>
-      <div class="rd">${esc(it.sum)}…</div></div>`;
+      <div class="rd">${esc(it.sum)}${it.sum?'…':''}</div></div>`;
+  }
+  // OpenAlex の inverted index → 通常のアブストラクト文字列に復元
+  function abstractFromInverted(inv){
+    if(!inv) return '';
+    const arr=[];
+    for(const w in inv){ for(const p of inv[w]) arr[p]=w; }
+    return arr.join(' ').replace(/\s+/g,' ').trim();
+  }
+  // ⓪ OpenAlex（CORS対応・キー不要・高信頼）。ブラウザから直接取得＝プロキシ不要。
+  async function fetchPapersOpenAlex(MAX){
+    const terms=CFG.OPENALEX_QUERY || 'autonomous driving';
+    const since=new Date(Date.now()-120*864e5).toISOString().slice(0,10); // 直近約4ヶ月
+    const today=new Date().toISOString().slice(0,10);
+    const mail=encodeURIComponent(CFG.CONTACT_EMAIL||'research-os@users.noreply.github.com');
+    // title_and_abstract.search で語を含む論文に限定し、直近期間内を「関連度順」で取得
+    //（日付ソートだと無関係な新着を拾うため、関連度順＋recencyフィルタが最も的確）
+    const url=`https://api.openalex.org/works?filter=`
+      +`title_and_abstract.search:${encodeURIComponent(terms)},from_publication_date:${since},to_publication_date:${today}`
+      +`&per-page=${MAX}`
+      +`&select=id,title,publication_date,doi,abstract_inverted_index,primary_location&mailto=${mail}`;
+    try{
+      const res=await fetchT(url,{cache:'no-store'},9000);
+      if(!res.ok) return null;
+      const j=await res.json();
+      const rows=j.results||[];
+      if(!rows.length) return null;
+      return rows.map(w=>{
+        const link=w.doi||(w.primary_location&&w.primary_location.landing_page_url)||w.id;
+        const venue=(w.primary_location&&w.primary_location.source&&w.primary_location.source.display_name)||'OpenAlex';
+        return {title:(w.title||'(無題)').replace(/\s+/g,' ').trim(),
+          sum:abstractFromInverted(w.abstract_inverted_index).slice(0,90),
+          link, aid:'', source:venue.slice(0,28),
+          date:w.publication_date?new Date(w.publication_date):null};
+      });
+    }catch(_){return null;}
   }
   // ① export API（キーワード検索・日付順）。クラウドIPだと429のことがある。
   async function fetchPapersAPI(MAX){
@@ -843,8 +879,9 @@
       card.innerHTML=researchCardHTML(cache.html,`<div style="font-size:11px;color:var(--faint);margin:2px 0 8px">🔄 最新の論文を確認中…（前回${relAgeJa(cache.ts)}の結果を表示）</div>`);
     }
     const MAX=CFG.RESEARCH_MAX||5;
-    let items=await fetchPapersAPI(MAX);
-    if(!items) items=await fetchPapersRSS(MAX);  // API混雑時はRSSへ
+    let items=await fetchPapersOpenAlex(MAX);    // 主軸: OpenAlex（高信頼）
+    if(!items) items=await fetchPapersAPI(MAX);  // 予備1: arXiv API
+    if(!items) items=await fetchPapersRSS(MAX);  // 予備2: arXiv RSS
     if(items&&items.length){
       const itemsHtml=items.map(paperItemHTML).join('');
       _latestResearchItems=items.map(x=>({title:x.title}));
@@ -853,14 +890,14 @@
       wireResearchAI();
     }else if(cache&&cache.html){
       _latestResearchItems=cache.items||[];
-      const note=`<div style="font-size:11px;color:var(--amber);margin:2px 0 8px">⚠️ arXivが混雑中。前回（${relAgeJa(cache.ts)}）取得した論文を表示しています。↻ で再試行できます。</div>`;
+      const note=`<div style="font-size:11px;color:var(--amber);margin:2px 0 8px">⚠️ 論文ソースが一時的に混雑中。前回（${relAgeJa(cache.ts)}）取得した論文を表示しています。↻ で再試行できます。</div>`;
       card.innerHTML=researchCardHTML(cache.html,note);
       wireResearchAI();
     }else{
-      card.innerHTML=`<div class="ctitle"><span class="ico">🛰</span>Research Radar<span class="more" onclick="loadResearch()">↻</span></div><div class="err">arXivが一時的に混雑しているようです。少し時間を置いて ↻ で再試行してください。</div>`;
+      card.innerHTML=`<div class="ctitle"><span class="ico">🛰</span>Research Radar<span class="more" onclick="loadResearch()">↻</span></div><div class="err">論文ソースが一時的に混雑しているようです。少し時間を置いて ↻ で再試行してください。</div>`;
     }
   }
-  function timeAgo(d){const m=Math.floor((Date.now()-d)/60000);if(m<60)return m+'m ago';const h=Math.floor(m/60);if(h<24)return h+'h ago';return Math.floor(h/24)+'d ago';}
+  function timeAgo(d){const ms=Date.now()-d;if(ms<0)return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}`;const m=Math.floor(ms/60000);if(m<60)return m+'m ago';const h=Math.floor(m/60);if(h<24)return h+'h ago';const dd=Math.floor(h/24);if(dd<60)return dd+'d ago';return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}`;}
 
   /* ── Career Radar (watched companies) ────────────── */
   const DEFAULT_COMPANIES=['Tesla','Tier IV','Turing','日産自動車','Honda','Toyota','AUMOVIO','Bosch','Valeo','Mobileye'];

@@ -13,7 +13,7 @@ export default async function handler(req, res) {
     'export.arxiv.org', 'arxiv.org', 'rss.arxiv.org',
     'www.nhk.or.jp', 'www3.nhk.or.jp', 'news.yahoo.co.jp',
     'feeds.bbci.co.uk', 'bbci.co.uk', 'www.aljazeera.com', 'aljazeera.com',
-    'api.semanticscholar.org', 'wttr.in',
+    'api.semanticscholar.org', 'api.openalex.org', 'wttr.in',
   ];
   let host;
   try { host = new URL(target).hostname; } catch { res.status(400).json({ error: 'bad url' }); return; }

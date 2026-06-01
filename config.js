@@ -56,8 +56,11 @@ window.APP_CONFIG = {
     { label: 'eHMI',               terms: ['external human-machine interface', 'eHMI', 'pedestrian vehicle interaction'] },
     { label: 'V2X',                terms: ['vehicle-to-everything', 'V2X', 'connected vehicles'] },
   ],
-  RESEARCH_MAX: 6,                 // 表示する論文数（重要度順）
-  ENABLE_SEMANTIC_SCHOLAR: true,   // 引用数で重要度を補強（任意・失敗時は無視）
+  RESEARCH_MAX: 6,                 // 表示する論文数
+  // 論文ソース: OpenAlex(主)→ arXiv API → arXiv RSS の順でフォールバック
+  OPENALEX_QUERY: '',              // 空なら RESEARCH_CATEGORIES から自動生成。指定例: 'autonomous driving vision-language model eHMI'
+  CONTACT_EMAIL: '',               // OpenAlex polite pool用（任意・入れると安定）。例: 'you@example.com'
+  ENABLE_SEMANTIC_SCHOLAR: false,  // S2はクラウドIPで429が多いため既定OFF
 
   // ── Career Radar（注目企業。各社まとめ＋本人ペルソナ向け助言を生成） ──
   WATCH_COMPANIES: ['Tesla', 'Tier IV', 'Turing', '日産自動車', 'Honda', 'Toyota', 'AUMOVIO', 'Bosch', 'Valeo', 'Mobileye'],
