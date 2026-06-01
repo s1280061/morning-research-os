@@ -10,7 +10,7 @@ export default async function handler(req, res) {
   // Allow-list hosts we actually call, to avoid being an open proxy.
   const ALLOW = [
     'query1.finance.yahoo.com', 'query2.finance.yahoo.com',
-    'export.arxiv.org', 'arxiv.org',
+    'export.arxiv.org', 'arxiv.org', 'rss.arxiv.org',
     'www.nhk.or.jp', 'www3.nhk.or.jp', 'news.yahoo.co.jp',
     'feeds.bbci.co.uk', 'bbci.co.uk', 'www.aljazeera.com', 'aljazeera.com',
     'api.semanticscholar.org', 'wttr.in',

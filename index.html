@@ -778,6 +778,62 @@
       careerAdviceAuto().then(html=>{const s=document.getElementById('careerAdviceSlot');if(s)s.innerHTML=html;}).catch(()=>{});
     }
   }
+  function paperItemHTML(it){
+    const ago=it.date?timeAgo(it.date):'';
+    return `<div class="ritem barL">
+      <span class="rtm">${ago}</span>
+      <div class="rid">arXiv ${it.aid||''}</div>
+      <a class="rt" href="${it.link}" target="_blank" rel="noopener">${esc(it.title)}</a>
+      <div class="rd">${esc(it.sum)}…</div></div>`;
+  }
+  // ① export API（キーワード検索・日付順）。クラウドIPだと429のことがある。
+  async function fetchPapersAPI(MAX){
+    const cats=CFG.RESEARCH_CATEGORIES||[{terms:['autonomous driving']}];
+    const terms=cats.flatMap(c=>c.terms).slice(0,4).map(t=>`all:%22${encodeURIComponent(t).replace(/%20/g,'+')}%22`).join('+OR+');
+    const url=`https://export.arxiv.org/api/query?search_query=${terms}&start=0&max_results=${MAX}&sortBy=submittedDate&sortOrder=descending`;
+    for(let attempt=0; attempt<2; attempt++){
+      try{
+        const xmlStr=await fetchViaProxy(url,true,11000,true);
+        const xml=new DOMParser().parseFromString(xmlStr,'text/xml');
+        const es=[...xml.querySelectorAll('entry')];
+        if(es.length) return es.slice(0,MAX).map(e=>{
+          const link=(e.querySelector('id')?.textContent||'#').replace('http://','https://');
+          const pub=e.querySelector('published')?.textContent;
+          return {title:(e.querySelector('title')?.textContent||'').replace(/\s+/g,' ').trim(),
+            sum:(e.querySelector('summary')?.textContent||'').replace(/\s+/g,' ').trim().slice(0,90),
+            link, aid:(link.match(/abs\/([\d.]+)/)||[])[1]||'', date:pub?new Date(pub):null};
+        });
+      }catch(_){}
+      await new Promise(r=>setTimeout(r,1000));
+    }
+    return null;
+  }
+  // ② RSSフォールバック（rss.arxiv.org はレート制限されにくい。平日のみ新着あり）。
+  async function fetchPapersRSS(MAX){
+    const feeds=CFG.ARXIV_RSS||['https://rss.arxiv.org/rss/cs.RO','https://rss.arxiv.org/rss/cs.CV','https://rss.arxiv.org/rss/cs.AI','https://rss.arxiv.org/rss/cs.HC'];
+    const want=(CFG.RESEARCH_CATEGORIES||[]).flatMap(c=>c.terms).map(t=>t.toLowerCase());
+    let all=[];
+    for(const f of feeds){
+      try{
+        const xmlStr=await fetchViaProxy(f,true,9000,true);
+        const xml=new DOMParser().parseFromString(xmlStr,'text/xml');
+        for(const it of [...xml.querySelectorAll('item')]){
+          const title=(it.querySelector('title')?.textContent||'').replace(/\s+/g,' ').trim();
+          const link=(it.querySelector('link')?.textContent||'#').trim();
+          const desc=(it.querySelector('description')?.textContent||'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
+          const aid=(link.match(/abs\/([\d.]+)/)||link.match(/(\d{4}\.\d{4,5})/)||[])[1]||'';
+          const pub=it.querySelector('pubDate')?.textContent;
+          all.push({title,sum:desc.slice(0,90),link,aid,date:pub?new Date(pub):null,hay:(title+' '+desc).toLowerCase()});
+        }
+      }catch(_){}
+    }
+    if(!all.length) return null;
+    let filt = want.length ? all.filter(x=>want.some(t=>x.hay.includes(t))) : all;
+    if(!filt.length) filt=all;
+    const seen=new Set(), out=[];
+    for(const x of filt){const k=x.aid||x.title;if(seen.has(k))continue;seen.add(k);out.push(x);if(out.length>=MAX)break;}
+    return out.length?out:null;
+  }
   async function loadResearch(){
     const card=document.getElementById('researchCard');
     // キャッシュがあれば即表示（カードが空/「取得中」で固まらない）。裏で最新を取得して差し替える。
@@ -786,45 +842,22 @@
       _latestResearchItems=cache.items||[];
       card.innerHTML=researchCardHTML(cache.html,`<div style="font-size:11px;color:var(--faint);margin:2px 0 8px">🔄 最新の論文を確認中…（前回${relAgeJa(cache.ts)}の結果を表示）</div>`);
     }
-    const cats=CFG.RESEARCH_CATEGORIES||[{terms:['autonomous driving']}];
-    const terms=cats.flatMap(c=>c.terms).slice(0,4).map(t=>`all:%22${encodeURIComponent(t).replace(/%20/g,'+')}%22`).join('+OR+');
-    const url=`https://export.arxiv.org/api/query?search_query=${terms}&start=0&max_results=${CFG.RESEARCH_MAX||5}&sortBy=submittedDate&sortOrder=descending`;
-    let entries=null;
-    for(let attempt=0; attempt<2 && !entries; attempt++){
-      try{
-        const xmlStr=await fetchViaProxy(url,true,11000,true);
-        const xml=new DOMParser().parseFromString(xmlStr,'text/xml');
-        const es=[...xml.querySelectorAll('entry')];
-        if(es.length){entries=es.slice(0,CFG.RESEARCH_MAX||5);break;}
-      }catch(_){}
-      if(!entries) await new Promise(r=>setTimeout(r,1200));
-    }
-    if(entries){
-      const itemsHtml=entries.map(e=>{
-        const t=(e.querySelector('title')?.textContent||'').replace(/\s+/g,' ').trim();
-        const sum=(e.querySelector('summary')?.textContent||'').replace(/\s+/g,' ').trim().slice(0,90);
-        const link=(e.querySelector('id')?.textContent||'#').replace('http://','https://');
-        const aid=(link.match(/abs\/([\d.]+)/)||[])[1]||'';
-        const pub=e.querySelector('published')?.textContent;
-        const ago=pub?timeAgo(new Date(pub)):'';
-        return `<div class="ritem barL">
-          <span class="rtm">${ago}</span>
-          <div class="rid">arXiv ${aid}</div>
-          <a class="rt" href="${link}" target="_blank" rel="noopener">${esc(t)}</a>
-          <div class="rd">${esc(sum)}…</div></div>`;
-      }).join('');
-      _latestResearchItems=entries.map(e=>({title:(e.querySelector('title')?.textContent||'').replace(/\s+/g,' ').trim()}));
+    const MAX=CFG.RESEARCH_MAX||5;
+    let items=await fetchPapersAPI(MAX);
+    if(!items) items=await fetchPapersRSS(MAX);  // API混雑時はRSSへ
+    if(items&&items.length){
+      const itemsHtml=items.map(paperItemHTML).join('');
+      _latestResearchItems=items.map(x=>({title:x.title}));
       try{localStorage.setItem('cache_research',JSON.stringify({ts:Date.now(),items:_latestResearchItems,html:itemsHtml}));}catch(_){}
       card.innerHTML=researchCardHTML(itemsHtml,'');
       wireResearchAI();
     }else if(cache&&cache.html){
-      // 取得失敗 → 前回キャッシュを残し、注記だけ更新（すでに表示済み）
       _latestResearchItems=cache.items||[];
       const note=`<div style="font-size:11px;color:var(--amber);margin:2px 0 8px">⚠️ arXivが混雑中。前回（${relAgeJa(cache.ts)}）取得した論文を表示しています。↻ で再試行できます。</div>`;
       card.innerHTML=researchCardHTML(cache.html,note);
       wireResearchAI();
     }else{
-      card.innerHTML=`<div class="ctitle"><span class="ico">🛰</span>Research Radar<span class="more" onclick="loadResearch()">↻</span></div><div class="err">arXivが混雑しているようです。少し時間を置いて ↻ で再試行してください。</div>`;
+      card.innerHTML=`<div class="ctitle"><span class="ico">🛰</span>Research Radar<span class="more" onclick="loadResearch()">↻</span></div><div class="err">arXivが一時的に混雑しているようです。少し時間を置いて ↻ で再試行してください。</div>`;
     }
   }
   function timeAgo(d){const m=Math.floor((Date.now()-d)/60000);if(m<60)return m+'m ago';const h=Math.floor(m/60);if(h<24)return h+'h ago';return Math.floor(h/24)+'d ago';}
