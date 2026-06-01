@@ -604,10 +604,11 @@
     try{
       const news=_latestNewsItems.slice(0,3).map(x=>x.title).filter(Boolean).join('\n');
       const papers=_latestResearchItems.slice(0,3).map(x=>x.title).filter(Boolean).join('\n');
+      const ck='advice_'+sig(news+papers); const cached=aiCacheGet(ck); if(cached) return cached;
       const system='You are a concise daily strategy coach for a research professional. Output 2 short bullet points in Japanese.';
       const user=`今日のニュース:\n${news||'なし'}\n\n今日の研究トピック:\n${papers||'なし'}\n\n今日やるべき行動を2つ、短く具体的に提案してください。`;
       const t=await callLLMQueued(system,user);
-      return `<div class="brief" style="margin-top:10px">${esc(t).replace(/\n/g,'<br>')}</div>`;
+      const html=`<div class="brief" style="margin-top:10px">${esc(t).replace(/\n/g,'<br>')}</div>`; aiCacheSet(ck,html); return html;
     }catch(_){
       return trendAdviceHtml();
     }
@@ -632,10 +633,11 @@
     try{
       const papers=_latestResearchItems.slice(0,6).map((x,i)=>`${i+1}. ${x.title}`).filter(Boolean).join('\n');
       if(!papers) return researchTrendsLocal();
-      const system='あなたは自動運転・AI分野に精通した研究アナリストです。与えられた最新arXiv論文タイトル群から研究動向を読み解き、日本語で簡潔にまとめます。各項目は1〜2文、文頭に絵文字。前置き・締めは不要。';
+      const ck='rtrend_'+sig(papers); const cached=aiCacheGet(ck); if(cached) return cached;
+      const system='あなたは自動運転・AI分野に精通した研究アナリストです。与えられた最新の論文タイトル群から研究動向を読み解き、日本語で簡潔にまとめます。各項目は1〜2文、文頭に絵文字。前置き・締めは不要。';
       const user=`最新の研究論文タイトル:\n${papers}\n\n以下の3点を出力してください:\n🔥 今のトレンド: 現在ホットな研究テーマ・手法\n🌊 背景にある流れ: なぜ今それが注目されているか\n📈 今後の予測: 半年〜1年先に流行りそうなテーマを根拠とともに予測`;
       const t=await callLLMQueued(system,user);
-      return `<div class="brief">${mdLite(t)}</div>`;
+      const html=`<div class="brief">${mdLite(t)}</div>`; aiCacheSet(ck,html); return html;
     }catch(e){
       return researchTrendsLocal();
     }
@@ -714,10 +716,11 @@
       const jp=_latestNewsItems.filter(x=>x.region==='国内').map(x=>'・'+x.title).join('\n')||'なし';
       const world=_latestNewsItems.filter(x=>x.region==='世界').map(x=>'・'+x.title).join('\n')||'なし';
       if(jp==='なし'&&world==='なし')return newsTrendLocal();
+      const ck='ntrend_'+sig(jp+world); const cached=aiCacheGet(ck); if(cached) return cached;
       const system='あなたは国際情勢と国内ニュースに詳しいアナリストです。与えられた見出しから「最近どうなっているか」の傾向を日本語で簡潔にまとめます。個別記事の羅列ではなく、共通する流れ・テーマを抽出。各項目1〜2文、文頭に絵文字。前置き・締めは不要。';
       const user=`【国内の見出し】\n${jp}\n\n【世界の見出し】\n${world}\n\n次の3点を出力:\n🇯🇵 国内の傾向: 今の日本の主要な流れ\n🌍 世界の傾向: 国際的に注目されている動き\n🔭 注目ポイント: 今後数日〜数週間で気をつけて見るべきこと`;
       const t=await callLLMQueued(system,user,500);
-      return `<div class="brief">${mdLite(t)}</div>`;
+      const html=`<div class="brief">${mdLite(t)}</div>`; aiCacheSet(ck,html); return html;
     }catch(e){
       return newsTrendLocal();
     }
@@ -923,11 +926,12 @@
       const persona=CFG.USER_PERSONA||(CFG.USER_NAME?`${CFG.USER_NAME}（自動運転・AI研究志望）`:'自動運転・AI研究を志す若手エンジニア');
       const cos=(CFG.WATCH_COMPANIES||DEFAULT_COMPANIES);
       const papers=_latestResearchItems.slice(0,4).map(x=>x.title).filter(Boolean).join('\n')||'（未取得）';
+      const ck='career_'+sig(persona+cos.join()+papers); const cached=aiCacheGet(ck); if(cached) return cached;
       const facts='【企業の正確な前提（混同しないこと）】Tesla=ビジョン中心のEnd-to-End FSD、Dojo。Tier IV=日本、オープンソースAutowareの中心企業(Apolloではない)。Turing=日本のスタートアップ、生成AI/VLMによる完全自動運転(レベル5)を標榜。日産自動車=対象者の現職、ProPILOT/SDV/eHMI。Honda=Honda SENSING、レベル3 Legend実績。Toyota=Woven by Toyota、Arene OS、安全。AUMOVIO=Continentalから2025年分社した車載エレクトロニクス/ADAS企業。Bosch=Tier1大手、レーダ/カメラ/ADAS ECU。Valeo=仏Tier1、LiDAR SCALAや駐車/周辺監視に強い。Mobileye=Intel系、EyeQ SoCとREM/視覚ベース自動運転。';
       const system='あなたは自動運転(AD/ADAS)業界とAI研究キャリアに精通したアドバイザーです。各社の自動運転戦略を正確かつ簡潔にまとめ、対象者本人のプロフィールに完全に合わせた実行可能な助言を日本語で出します。事実を捏造せず、与えた前提に従うこと。一般論や挨拶は不要。Markdownの**太字**と「- 」箇条書きのみ使用。';
       const user=`【対象者プロフィール】\n${persona}\n\n${facts}\n\n【対象企業】\n${cos.join(', ')}\n\n【今日の研究トレンド（最新論文）】\n${papers}\n\n次の構成で出力してください:\n\n## 企業別まとめ\n各社を1行ずつ「**社名**: AD/ADASの注力点・技術的特徴（1文）→ あなたの強み(VLM/eHMI/V2X/駐車/日産での実務)を踏まえた狙い方(1文)」。${cos.length}社すべて。\n\n## あなたへの総合キャリア戦略\n- 🎯 直近の一手: 今の日産での立ち位置を活かして今週着手すべき具体行動\n- 🧩 埋めるべきギャップ: 海外トップ研究職/PhDに向けて不足しがちな点と補い方\n- 📨 アピール戦略: 選考やコネクションで効くポートフォリオ・発信の見せ方\n- 🌏 中長期: PhD・国際研究連携・Research Scientist到達への筋道`;
       const t=await callLLMQueued(system,user,1500);
-      return `<div class="brief">${mdLite(t)}</div>`;
+      const html=`<div class="brief">${mdLite(t)}</div>`; aiCacheSet(ck,html); return html;
     }catch(e){
       return `<div class="brief" style="color:var(--faint)">アドバイス生成に失敗しました（${esc(String(e.message||e)).slice(0,60)}）。</div>`;
     }
@@ -979,6 +983,12 @@
     else if(provider==='anthropic' && !/^claude/i.test(model)) model=def;
     else if(provider==='grok' && !/^grok/i.test(model)) model=def;
     else if(provider==='openai' && !/^(gpt|o\d)/i.test(model)) model=def;
+    // Groqの正式モデルID補正（接頭辞なしの旧設定 'gpt-oss-120b' 等を正しいIDへ）
+    if(provider==='groq'){
+      const GROQ_ALIAS={'gpt-oss-120b':'openai/gpt-oss-120b','gpt-oss-20b':'openai/gpt-oss-20b',
+        'llama-4-scout':'meta-llama/llama-4-scout-17b-16e-instruct','qwen3-32b':'qwen/qwen3-32b','qwen-3-32b':'qwen/qwen3-32b'};
+      if(GROQ_ALIAS[model]) model=GROQ_ALIAS[model];
+    }
     return {key,provider,model};
   }
   async function callLLM(system, user, maxTokens=400){
@@ -1034,6 +1044,11 @@
     _llmQueue=p.catch(()=>{});
     return p;
   }
+  // AI生成結果のキャッシュ（無料枠のレート制限対策）。入力が同じで一定時間内なら再生成しない。
+  const AI_TTL_MIN=45;
+  function sig(s){let h=0;s=String(s);for(let i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))|0;return h.toString(36);}
+  function aiCacheGet(key){try{const c=JSON.parse(localStorage.getItem('aic_'+key)||'null');if(c&&c.v&&Date.now()-c.ts<AI_TTL_MIN*60000)return c.v;}catch(_){}return null;}
+  function aiCacheSet(key,v){try{localStorage.setItem('aic_'+key,JSON.stringify({ts:Date.now(),v}));}catch(_){}}
 
   let _aiBriefRan=false;
   async function generateAIBriefing(){
@@ -1048,10 +1063,15 @@
       +`提供データをもとに、今朝のパーソナルブリーフィングを日本語で簡潔に作成してください。`
       +`天気と服装の一言、マーケットの所感、今日やるべき研究アクションの提案、励ましを含めます。`
       +`箇条書き3〜4項目、各1行、絵文字を文頭に。前置き・締めの挨拶は不要。`;
-    const user=`今日のデータ:\n${buildContext()}\n\n上記からブリーフィングを作成してください。`;
+    const ctx=buildContext();
+    const ck='brief_'+sig(name+ctx);
+    const cachedB=aiCacheGet(ck);
+    if(cachedB){ card.innerHTML=`${briefTitle}<div class="brief">${cachedB}</div>`; return; }
+    const user=`今日のデータ:\n${ctx}\n\n上記からブリーフィングを作成してください。`;
     try{
       const txt=await callLLMQueued(system,user);
-      card.innerHTML=`${briefTitle}<div class="brief">${esc(txt).replace(/\n+/g,'<br>')}</div>`;
+      const body=esc(txt).replace(/\n+/g,'<br>'); aiCacheSet(ck,body);
+      card.innerHTML=`${briefTitle}<div class="brief">${body}</div>`;
     }catch(e){
       card.innerHTML=`${briefTitle}<div class="brief">${localBrief()}</div>`
         +`<div style="font-size:10px;color:var(--faint);margin-top:8px">⚠️ AI生成に失敗（${esc(String(e.message||e)).slice(0,80)}）。ローカル要約を表示中。</div>`;
