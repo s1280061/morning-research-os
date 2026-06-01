@@ -33,7 +33,8 @@ export default async function handler(req, res) {
     const ct = r.headers.get('content-type') || 'text/plain; charset=utf-8';
     res.setHeader('content-type', ct);
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Cache-Control', 's-maxage=120, stale-while-revalidate=300');
+    // リアルタイム性優先：エッジ/ブラウザにキャッシュさせない
+    res.setHeader('Cache-Control', 'no-store, max-age=0');
     res.status(r.status).send(body);
   } catch (e) {
     res.status(502).json({ error: 'upstream failed: ' + String(e && e.message || e) });

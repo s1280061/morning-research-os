@@ -480,38 +480,54 @@
       u=>`https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(u)}`,
       u=>`https://thingproxy.freeboard.io/fetch/${u}`,
     ];
+    // 毎回最新を取得するためキャッシュバスター付与＋no-store
+    const fresh=url+(url.includes('?')?'&':'?')+'_='+Date.now();
     for(const p of proxies){
-      try{const r=await fetchT(p(url),{},12000);if(!r.ok)continue;return asText?await r.text():await r.json();}catch(_){}
+      try{const r=await fetchT(p(fresh),{cache:'no-store'},12000);if(!r.ok)continue;return asText?await r.text():await r.json();}catch(_){}
     }
     throw new Error('proxy failed');
   }
   function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 
-  /* ── Weather ─────────────────────────────────────── */
-  const WICON={113:'☀️',116:'⛅',119:'☁️',122:'☁️',143:'🌫️',176:'🌦️',179:'🌨️',182:'🌧️',185:'🌧️',200:'⛈️',227:'🌨️',230:'❄️',248:'🌫️',260:'🌫️',263:'🌦️',266:'🌧️',281:'🌧️',284:'🌧️',293:'🌦️',296:'🌧️',299:'🌧️',302:'🌧️',305:'🌧️',308:'🌧️',311:'🌧️',314:'🌧️',317:'🌧️',320:'🌨️',323:'🌨️',326:'🌨️',329:'❄️',332:'❄️',335:'❄️',338:'❄️',350:'🌧️',353:'🌦️',356:'🌧️',359:'🌧️',362:'🌨️',365:'🌨️',368:'🌨️',371:'❄️',374:'🌧️',377:'🌧️',386:'⛈️',389:'⛈️',392:'⛈️',395:'❄️'};
+  /* ── Weather (Open-Meteo: CORS対応・高信頼・APIキー不要・リアルタイム) ── */
+  // WMO weather code → 絵文字＋日本語
+  const WMO={0:['☀️','快晴'],1:['🌤','晴れ'],2:['⛅','一部曇り'],3:['☁️','曇り'],45:['🌫️','霧'],48:['🌫️','霧氷'],
+    51:['🌦️','弱い霧雨'],53:['🌦️','霧雨'],55:['🌧️','強い霧雨'],56:['🌧️','着氷性霧雨'],57:['🌧️','着氷性霧雨'],
+    61:['🌦️','弱い雨'],63:['🌧️','雨'],65:['🌧️','強い雨'],66:['🌧️','着氷性の雨'],67:['🌧️','着氷性の雨'],
+    71:['🌨️','弱い雪'],73:['🌨️','雪'],75:['❄️','強い雪'],77:['🌨️','霧雪'],
+    80:['🌦️','にわか雨'],81:['🌧️','にわか雨'],82:['🌧️','激しいにわか雨'],85:['🌨️','にわか雪'],86:['❄️','強いにわか雪'],
+    95:['⛈️','雷雨'],96:['⛈️','雷雨(ひょう)'],99:['⛈️','激しい雷雨(ひょう)']};
   let currentWeather=null;
+  async function geocodeCity(name){
+    const url=`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(name)}&count=1&language=ja&format=json`;
+    const r=await fetchT(url,{cache:'no-store'},8000); const j=await r.json();
+    const g=j.results&&j.results[0]; if(!g)throw new Error('city not found');
+    return {lat:g.latitude,lon:g.longitude,label:g.name};
+  }
   async function loadWeather(city){
     const card=document.getElementById('weatherCard');
-    // 既定都市なら座標で正確に取得し、表示は CITY_LABEL（例:厚木）に
     const isDefault = city===(CFG.DEFAULT_CITY||'');
-    const queryCity = (isDefault && CFG.DEFAULT_COORDS) ? CFG.DEFAULT_COORDS : city;
     try{
-      let d;
-      try{
-        const res=await fetchT(`https://wttr.in/${encodeURIComponent(queryCity)}?format=j1`,{},8000);
-        if(!res.ok)throw 0; d=await res.json();
-      }catch(_){
-        d=await fetchViaProxy(`https://wttr.in/${encodeURIComponent(queryCity)}?format=j1`);
+      let lat,lon,label;
+      if(isDefault && CFG.DEFAULT_COORDS){
+        const [a,b]=CFG.DEFAULT_COORDS.split(',');lat=+a;lon=+b;label=CFG.CITY_LABEL||city;
+      }else{
+        const g=await geocodeCity(city);lat=g.lat;lon=g.lon;label=(isDefault&&CFG.CITY_LABEL)?CFG.CITY_LABEL:g.label;
       }
-      const c=d.current_condition[0], loc=d.nearest_area[0];
-      const locName=(isDefault && CFG.CITY_LABEL) ? CFG.CITY_LABEL : `${loc.areaName[0].value}, ${loc.country[0].value}`;
-      const w={tempC:+c.temp_C,feels:+c.FeelsLikeC,humidity:c.humidity,windKph:c.windspeedKmph,
-        desc:(c.lang_ja?c.lang_ja[0].value:c.weatherDesc[0].value),code:+c.weatherCode,
-        loc:locName};
+      const wurl=`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}`
+        +`&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m`
+        +`&wind_speed_unit=kmh&timezone=auto&_=${Date.now()}`;
+      const res=await fetchT(wurl,{cache:'no-store'},8000);
+      if(!res.ok)throw new Error('open-meteo '+res.status);
+      const d=await res.json();const cu=d.current;
+      const wm=WMO[cu.weather_code]||['🌡️','—'];
+      const w={tempC:Math.round(cu.temperature_2m),feels:Math.round(cu.apparent_temperature),
+        humidity:cu.relative_humidity_2m,windKph:Math.round(cu.wind_speed_10m),
+        desc:wm[1],code:cu.weather_code,icon:wm[0],loc:label};
       currentWeather=w; renderOutfit(w); renderBrief();
       card.innerHTML=`<div class="ctitle"><span class="ico">🌤</span>天気</div>
         <div class="w-top">
-          <div class="w-ico">${WICON[w.code]||'🌡️'}</div>
+          <div class="w-ico">${w.icon||'🌡️'}</div>
           <div class="w-temp">${w.tempC}<small>°C</small></div>
           <div class="w-desc">${esc(w.desc)}</div>
         </div>
@@ -855,27 +871,43 @@
     return lines.join('\n');
   }
 
+  // キーの接頭辞からプロバイダ＆モデルを堅牢に判定（設定が古くてもキーが正なら正しく動く）
+  function resolveLLM(){
+    const key=CFG.AI_API_KEY||'';
+    let provider, def;
+    if(/^gsk_/i.test(key)){provider='groq';def='openai/gpt-oss-120b';}
+    else if(/^sk-ant-/i.test(key)){provider='anthropic';def='claude-3-5-sonnet-20241022';}
+    else if(/^xai-/i.test(key)){provider='grok';def='grok-2-latest';}
+    else if(/^sk-/i.test(key)){provider='openai';def='gpt-4o-mini';}
+    else{provider=CFG.AI_PROVIDER||'groq';def=provider==='anthropic'?'claude-3-5-sonnet-20241022':provider==='grok'?'grok-2-latest':provider==='openai'?'gpt-4o-mini':'openai/gpt-oss-120b';}
+    // 設定モデルがプロバイダに合わない場合は既定に差し替え（例: groqキーなのにclaudeモデル）
+    let model=CFG.AI_MODEL||def;
+    const groqish=m=>/\//.test(m)||/llama|mixtral|gemma|qwen|gpt-oss/i.test(m);
+    if(provider==='groq' && !groqish(model)) model=def;
+    else if(provider==='anthropic' && !/^claude/i.test(model)) model=def;
+    else if(provider==='grok' && !/^grok/i.test(model)) model=def;
+    else if(provider==='openai' && !/^(gpt|o\d)/i.test(model)) model=def;
+    return {key,provider,model};
+  }
   async function callLLM(system, user, maxTokens=400){
-    const key=CFG.AI_API_KEY, model=CFG.AI_MODEL;
-    const looksLikeGroqKey = /^gsk_/i.test(key||'');
-    const useGroq = CFG.AI_PROVIDER==='groq' || looksLikeGroqKey;
-    if(useGroq){
+    const {key,provider,model}=resolveLLM();
+    if(provider==='groq'){
       const r=await fetch('https://api.groq.com/openai/v1/chat/completions',{
         method:'POST',
         headers:{'content-type':'application/json','authorization':'Bearer '+key},
-        body:JSON.stringify({model:model||'llama-3.3-70b-versatile',max_tokens:maxTokens,messages:[{role:'system',content:system},{role:'user',content:user}]})
+        body:JSON.stringify({model,max_tokens:maxTokens,messages:[{role:'system',content:system},{role:'user',content:user}]})
       });
       if(!r.ok)throw new Error('groq '+r.status+' '+(await r.text()).slice(0,200));
       const j=await r.json();return j.choices?.[0]?.message?.content||'';
-    }else if(CFG.AI_PROVIDER==='grok'){
+    }else if(provider==='grok'){
       const r=await fetch('https://api.x.ai/v1/chat/completions',{
         method:'POST',
         headers:{'content-type':'application/json','authorization':'Bearer '+key},
-        body:JSON.stringify({model:model||'grok-4.3',max_tokens:maxTokens,messages:[{role:'system',content:system},{role:'user',content:user}]})
+        body:JSON.stringify({model,max_tokens:maxTokens,messages:[{role:'system',content:system},{role:'user',content:user}]})
       });
       if(!r.ok)throw new Error('grok '+r.status+' '+(await r.text()).slice(0,200));
       const j=await r.json();return j.choices?.[0]?.message?.content||'';
-    }else if(CFG.AI_PROVIDER==='anthropic'){
+    }else if(provider==='anthropic'){
       const r=await fetch('https://api.anthropic.com/v1/messages',{
         method:'POST',
         headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
@@ -897,10 +929,14 @@
   let _llmQueue=Promise.resolve();
   function callLLMQueued(system,user,maxTokens=400){
     const run=async()=>{
+      let lastErr;
       for(let i=0;i<3;i++){
-        try{return await callLLM(system,user,maxTokens);}
-        catch(e){const m=String(e&&e.message||e);if(/\b429\b/.test(m)&&i<2){await new Promise(r=>setTimeout(r,1200*(i+1)));continue;}throw e;}
+        try{const out=await callLLM(system,user,maxTokens);if(out&&out.trim())return out;/* 空応答はリトライ */}
+        catch(e){lastErr=e;const m=String(e&&e.message||e);if(!/\b429\b/.test(m))throw e;/* 429のみリトライ */}
+        await new Promise(r=>setTimeout(r,1000*(i+1)));
       }
+      if(lastErr)throw lastErr;
+      throw new Error('empty response');
     };
     const p=_llmQueue.then(run,run);
     _llmQueue=p.catch(()=>{});
@@ -912,9 +948,8 @@
     if(!CFG.AI_API_KEY){renderBrief();return;}
     if(_aiBriefRan)return; _aiBriefRan=true;
     const card=document.getElementById('briefCard');
-    const providerLabel =
-      (/^gsk_/i.test(CFG.AI_API_KEY||'') || CFG.AI_PROVIDER==='groq') ? 'Groq' :
-      (CFG.AI_PROVIDER==='grok' ? 'Grok' : (CFG.AI_PROVIDER==='anthropic' ? 'Claude' : 'GPT'));
+    const pv=resolveLLM().provider;
+    const providerLabel = pv==='groq'?'Groq':pv==='grok'?'Grok':pv==='anthropic'?'Claude':'GPT';
     card.innerHTML=`${briefTitle}<div class="brief">🤖 ${providerLabel} が生成中…</div>`;
     const name=CFG.USER_NAME||'研究者';
     const system=`あなたは${name}さん専属の研究・キャリアコーチAIです。博士進学・研究力向上を支援します。`
@@ -1107,9 +1142,20 @@
   }
 
   renderLocalTasks(); renderCoach(); loadAll(); updateNotifyBtn(); scheduleNotify();
+  // データ系は短い間隔で自動更新（リアルタイム性重視）
+  setInterval(()=>{try{const c=document.getElementById('cityInput').value.trim()||CFG.DEFAULT_CITY;loadWeather(c);loadMarket();}catch(_){}}, 5*60*1000);
   setInterval(()=>{try{loadNews();}catch(_){}}, 10*60*1000);
   setInterval(()=>{try{loadResearch();}catch(_){}}, 20*60*1000);
-  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){try{loadNews();loadResearch();}catch(_){}}});
+  // アプリに戻ってきた／再フォーカス時は全体を最新化（60秒スロットルで多重実行防止）
+  let _lastRefresh=Date.now();
+  function refreshOnReturn(){
+    if(Date.now()-_lastRefresh < 60*1000) return;
+    _lastRefresh=Date.now();
+    try{loadAll();}catch(_){}
+  }
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refreshOnReturn();});
+  window.addEventListener('focus',refreshOnReturn);
+  window.addEventListener('online',()=>{_lastRefresh=0;refreshOnReturn();});
 
   (function wait(n=0){
     if(window.google?.accounts?.oauth2){initGoogle();}
