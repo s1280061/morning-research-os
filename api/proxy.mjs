@@ -21,20 +21,37 @@ export default async function handler(req, res) {
     res.status(403).json({ error: 'host not allowed: ' + host });
     return;
   }
-  try {
+  // arXiv / Semantic Scholar はクラウドの共有IPだと 429 が多発するため、
+  // ①429時は少し待ってリトライ ②成功レスポンスはCDNでキャッシュ(stale-while-revalidate)し、
+  //   以降はarXivを叩かずCDNから配信。失敗時も直近の成功コピーを返せるようにする。
+  const cacheable = /(^|\.)arxiv\.org$/.test(host) || host === 'api.semanticscholar.org';
+  const fetchOnce = async (ms) => {
     const ac = new AbortController();
-    const t = setTimeout(() => ac.abort(), 12000);
-    const r = await fetch(target, {
-      signal: ac.signal,
-      headers: { 'user-agent': 'Mozilla/5.0 (MorningOS proxy)', 'accept': '*/*' },
-    });
-    clearTimeout(t);
+    const t = setTimeout(() => ac.abort(), ms);
+    try {
+      return await fetch(target, {
+        signal: ac.signal,
+        headers: { 'user-agent': 'MorningResearchOS/1.0 (+https://morning-research-os-p9dn.vercel.app)', 'accept': '*/*' },
+      });
+    } finally { clearTimeout(t); }
+  };
+  try {
+    let r = await fetchOnce(11000);
+    // 429/5xx は最大2回リトライ（レート制限ウィンドウをずらす）
+    for (let i = 0; i < 2 && (r.status === 429 || r.status >= 500); i++) {
+      await new Promise(res2 => setTimeout(res2, 1500 * (i + 1)));
+      r = await fetchOnce(11000);
+    }
     const body = await r.text();
     const ct = r.headers.get('content-type') || 'text/plain; charset=utf-8';
     res.setHeader('content-type', ct);
     res.setHeader('Access-Control-Allow-Origin', '*');
-    // リアルタイム性優先：エッジ/ブラウザにキャッシュさせない
-    res.setHeader('Cache-Control', 'no-store, max-age=0');
+    if (cacheable && r.ok) {
+      // 一度成功すれば30分はCDNから配信、最大1日はstaleを返しつつ裏で更新
+      res.setHeader('Cache-Control', 'public, s-maxage=1800, stale-while-revalidate=86400');
+    } else {
+      res.setHeader('Cache-Control', 'no-store, max-age=0');
+    }
     res.status(r.status).send(body);
   } catch (e) {
     res.status(502).json({ error: 'upstream failed: ' + String(e && e.message || e) });
