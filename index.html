@@ -134,6 +134,13 @@
     .w-stats{display:flex;gap:14px;margin-top:12px;font-size:12px;color:var(--ink2);}
     .w-stats b{color:var(--ink);}
     .w-loc{font-size:11.5px;color:var(--blue);margin-top:10px;display:flex;align-items:center;gap:4px;}
+    .w-hint{font-size:12px;font-weight:700;color:var(--ink);margin-top:12px;}
+    .w-hours{display:flex;gap:6px;margin-top:8px;overflow-x:auto;padding-bottom:2px;-webkit-overflow-scrolling:touch;}
+    .wh{flex:0 0 auto;min-width:48px;text-align:center;background:rgba(120,140,255,.07);border-radius:12px;padding:7px 6px;}
+    .wh-t{font-size:10.5px;color:var(--ink2);}
+    .wh-i{font-size:17px;line-height:1.3;}
+    .wh-d{font-size:12px;font-weight:700;color:var(--ink);}
+    .wh-p{font-size:9.5px;color:var(--blue);}
 
     /* Summary lines (schedule mini) */
     .sline{display:flex;align-items:center;gap:8px;font-size:12.5px;padding:6px 0;border-top:1px dashed var(--line2);}
@@ -530,16 +537,43 @@
       }
       const wurl=`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}`
         +`&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m`
+        +`&hourly=temperature_2m,weather_code,precipitation_probability&forecast_days=2`
         +`&wind_speed_unit=kmh&timezone=auto&_=${Date.now()}`;
       const res=await fetchT(wurl,{cache:'no-store'},8000);
       if(!res.ok)throw new Error('open-meteo '+res.status);
       const d=await res.json();const cu=d.current;
       const wm=WMO[cu.weather_code]||['🌡️','—'];
+      // ── 時間帯予報（今から12時間ぶんを2時間刻み）＋「いつ晴れ/雨か」のヒント ──
+      const H=d.hourly||{}; const blocks=[]; let hint='';
+      if(H.time&&H.time.length){
+        let s=H.time.findIndex(t=>t>=cu.time); if(s<0)s=0;
+        for(let i=s;i<H.time.length&&blocks.length<6;i+=2){
+          const dt=new Date(H.time[i]); const wmh=WMO[H.weather_code[i]]||['🌡️',''];
+          const pop=H.precipitation_probability?H.precipitation_probability[i]:null;
+          blocks.push({h:dt.getHours(),icon:wmh[0],temp:Math.round(H.temperature_2m[i]),pop});
+        }
+        // 今日の見通し
+        const today=cu.time.slice(0,10); let rainAt=null,sunAt=null,allClear=true;
+        for(let i=s;i<H.time.length;i++){
+          if(!String(H.time[i]).startsWith(today))break;
+          const code=H.weather_code[i], pop=H.precipitation_probability?H.precipitation_probability[i]:0;
+          const hr=new Date(H.time[i]).getHours();
+          if((code>=51||pop>=50)&&rainAt===null) rainAt=hr;
+          if(code<=1&&sunAt===null) sunAt=hr;
+          if(code>=3) allClear=false;
+        }
+        if(rainAt!==null) hint=`🌧️ ${rainAt}時ごろから雨の可能性（折りたたみ傘を）`;
+        else if(allClear) hint='☀️ 今日は日中ずっと晴れの見込み';
+        else if(sunAt!==null) hint=`🌤 ${sunAt}時ごろから晴れる見込み`;
+        else hint='⛅ くもりがち。雨の心配は少なめ';
+      }
       const w={tempC:Math.round(cu.temperature_2m),feels:Math.round(cu.apparent_temperature),
         humidity:cu.relative_humidity_2m,windKph:Math.round(cu.wind_speed_10m),
-        desc:wm[1],code:cu.weather_code,icon:wm[0],loc:label};
+        desc:wm[1],code:cu.weather_code,icon:wm[0],loc:label,hint};
       currentWeather=w; renderOutfit(w); renderBrief();
-      card.innerHTML=`<div class="ctitle"><span class="ico">🌤</span>天気</div>
+      const hoursHTML = blocks.length? `<div class="w-hours">${blocks.map(b=>
+        `<div class="wh"><div class="wh-t">${b.h}時</div><div class="wh-i">${b.icon}</div><div class="wh-d">${b.temp}°</div>${(b.pop>=20)?`<div class="wh-p">💧${b.pop}%</div>`:''}</div>`).join('')}</div>` : '';
+      card.innerHTML=`<div class="ctitle"><span class="ico">🌤</span>天気<span class="more" onclick="loadWeather(document.getElementById('cityInput').value.trim()||'${esc(CFG.DEFAULT_CITY||'Tokyo')}')">↻</span></div>
         <div class="w-top">
           <div class="w-ico">${w.icon||'🌡️'}</div>
           <div class="w-temp">${w.tempC}<small>°C</small></div>
@@ -548,6 +582,8 @@
         <div class="w-stats">
           <span>体感 <b>${w.feels}°</b></span><span>湿度 <b>${w.humidity}%</b></span><span>風 <b>${w.windKph}km/h</b></span>
         </div>
+        ${hint?`<div class="w-hint">${hint}</div>`:''}
+        ${hoursHTML}
         <div class="w-loc">📍 ${esc(w.loc)}</div>`;
     }catch(e){
       card.innerHTML=`<div class="ctitle"><span class="ico">🌤</span>天気</div><div class="err">天気の取得に失敗しました。都市名を確認してください。</div>`;
@@ -956,7 +992,10 @@
 
   function localBrief(){
     const bits=[];
-    if(currentWeather)bits.push(`本日 <b>${currentWeather.tempC}°C ${esc(currentWeather.desc)}</b>。`);
+    if(currentWeather){
+      bits.push(`本日 <b>${currentWeather.tempC}°C ${esc(currentWeather.desc)}</b>（体感${currentWeather.feels}°）。`);
+      if(currentWeather.hint)bits.push(esc(currentWeather.hint)+'。');
+    }
     const sp=window._spChart;
     if(sp){const d=sp.meta.regularMarketPrice-sp.meta.chartPreviousClose;bits.push(`S&P500 は${d>=0?'上昇':'下落'}基調。`);}
     const st=getStats();
@@ -972,7 +1011,8 @@
     const st=getStats();
     const recent=(st.logDates||[]).filter(d=>(Date.now()-new Date(d))<7*864e5).length;
     const lines=[];
-    if(currentWeather)lines.push(`天気(${CFG.CITY_LABEL||''}): ${currentWeather.tempC}°C 体感${currentWeather.feels}°C ${currentWeather.desc} 湿度${currentWeather.humidity}% 風${currentWeather.windKph}km/h`);
+    if(currentWeather){lines.push(`天気(${CFG.CITY_LABEL||''}): ${currentWeather.tempC}°C 体感${currentWeather.feels}°C ${currentWeather.desc} 湿度${currentWeather.humidity}% 風${currentWeather.windKph}km/h`);
+      if(currentWeather.hint)lines.push(`時間帯の見通し: ${currentWeather.hint}`);}
     const sp=window._spChart;
     if(sp){const d=sp.meta.regularMarketPrice-sp.meta.chartPreviousClose;lines.push(`S&P500: ${sp.meta.regularMarketPrice.toFixed(2)} (前日比 ${d>=0?'+':''}${d.toFixed(2)})`);}
     lines.push(`PhD準備スコア: ${st.score}/100, 直近7日の研究活動: ${recent}日, 今日のスタート: ${st.startedToday?'済':'未'}`);
@@ -1088,29 +1128,32 @@
 
   let _aiBriefRan=false;
   async function generateAIBriefing(){
-    if(!aiAvailable()){renderBrief();return;}
-    if(_aiBriefRan)return; _aiBriefRan=true;
     const card=document.getElementById('briefCard');
-    const pv=resolveLLM().provider;
-    const providerLabel = pv==='groq'?'Groq':pv==='grok'?'Grok':pv==='anthropic'?'Claude':'GPT';
-    card.innerHTML=`${briefTitle}<div class="brief">🤖 ${providerLabel} が生成中…</div>`;
+    const local=localBrief();
+    // どの端末でも必ず内容が出るよう、まずローカル要約を即表示する。
+    if(!aiAvailable()){ card.innerHTML=`${briefTitle}<div class="brief">${local}</div>`; return; }
+    if(_aiBriefRan)return; _aiBriefRan=true;
     const name=CFG.USER_NAME||'研究者';
-    const system=`あなたは${name}さん専属の研究・キャリアコーチAIです。博士進学・研究力向上を支援します。`
-      +`提供データをもとに、今朝のパーソナルブリーフィングを日本語で簡潔に作成してください。`
-      +`天気と服装の一言、マーケットの所感、今日やるべき研究アクションの提案、励ましを含めます。`
-      +`箇条書き3〜4項目、各1行、絵文字を文頭に。前置き・締めの挨拶は不要。`;
     const ctx=buildContext();
     const ck='brief_'+sig(name+ctx);
     const cachedB=aiCacheGet(ck);
     if(cachedB){ card.innerHTML=`${briefTitle}<div class="brief">${cachedB}</div>`; return; }
+    // 生成中もローカル要約を表示（空白や「生成中」だけにしない）。
+    card.innerHTML=`${briefTitle}<div class="brief">${local}</div><div style="font-size:10px;color:var(--faint);margin-top:6px">🤖 AIがパーソナル要約を作成中…</div>`;
+    const system=`あなたは${name}さん専属の研究・キャリアコーチAIです。博士進学・研究力向上を支援します。`
+      +`提供データをもとに、今朝のパーソナルブリーフィングを日本語で簡潔に作成してください。`
+      +`天気（時間帯の見通しがあれば触れる）と服装の一言、マーケットの所感、今日やるべき研究アクションの提案、励ましを含めます。`
+      +`箇条書き3〜4項目、各1行、絵文字を文頭に。前置き・締めの挨拶は不要。`;
     const user=`今日のデータ:\n${ctx}\n\n上記からブリーフィングを作成してください。`;
     try{
       const txt=await callLLMQueued(system,user);
       const body=esc(txt).replace(/\n+/g,'<br>'); aiCacheSet(ck,body);
       card.innerHTML=`${briefTitle}<div class="brief">${body}</div>`;
     }catch(e){
-      card.innerHTML=`${briefTitle}<div class="brief">${localBrief()}</div>`
-        +`<div style="font-size:10px;color:var(--faint);margin-top:8px">⚠️ AI生成に失敗（${esc(String(e.message||e)).slice(0,80)}）。ローカル要約を表示中。</div>`;
+      // 失敗してもローカル要約は表示済み。控えめな注記のみ（端末でエラー文が目立たないように）。
+      _aiBriefRan=false; // 次回フォーカス/更新で自動再試行
+      card.innerHTML=`${briefTitle}<div class="brief">${local}</div>`
+        +`<div style="font-size:10px;color:var(--faint);margin-top:6px">※ AI要約は混雑中のため簡易表示（自動で再試行します）</div>`;
     }
   }
 

@@ -1,5 +1,5 @@
 // Service Worker — PWA offline shell + notification click handling
-const CACHE = 'morning-briefing-v23';
+const CACHE = 'morning-briefing-v24';
 const ASSETS = ['index.html', 'config.js', 'manifest.json', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', (e) => {
