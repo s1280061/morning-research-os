@@ -511,75 +511,86 @@
     80:['🌦️','にわか雨'],81:['🌧️','にわか雨'],82:['🌧️','激しいにわか雨'],85:['🌨️','にわか雪'],86:['❄️','強いにわか雪'],
     95:['⛈️','雷雨'],96:['⛈️','雷雨(ひょう)'],99:['⛈️','激しい雷雨(ひょう)']};
   let currentWeather=null;
+  // Open-Meteo取得（直叩き2回リトライ→同一オリジンproxyフォールバック）
+  async function omFetch(url,ms=8000){
+    for(let i=0;i<2;i++){
+      try{const r=await fetchT(url,{cache:'no-store'},ms); if(r.ok) return await r.json();}catch(_){}
+      await new Promise(r=>setTimeout(r,700));
+    }
+    try{ return await fetchViaProxy(url,false,ms); }catch(_){}
+    return null;
+  }
   async function geocodeCity(name){
     const url=`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(name)}&count=1&language=ja&format=json`;
-    const r=await fetchT(url,{cache:'no-store'},8000); const j=await r.json();
-    const g=j.results&&j.results[0]; if(!g)throw new Error('city not found');
+    const j=await omFetch(url,8000);
+    const g=j&&j.results&&j.results[0]; if(!g)throw new Error('city not found');
     return {lat:g.latitude,lon:g.longitude,label:g.name};
+  }
+  function weatherCardInner(w,hoursHTML,stale){
+    const refresh=`<span class="more" onclick="loadWeather(document.getElementById('cityInput').value.trim()||'${esc(CFG.DEFAULT_CITY||'Tokyo')}')">↻</span>`;
+    return `<div class="ctitle"><span class="ico">🌤</span>天気${refresh}</div>
+      ${stale?`<div style="font-size:11px;color:var(--faint);margin-bottom:6px">⚠️ 最新の取得に失敗。前回の天気を表示中（↻で再試行）</div>`:''}
+      <div class="w-top"><div class="w-ico">${w.icon||'🌡️'}</div><div class="w-temp">${w.tempC}<small>°C</small></div><div class="w-desc">${esc(w.desc)}</div></div>
+      <div class="w-stats"><span>体感 <b>${w.feels}°</b></span><span>湿度 <b>${w.humidity}%</b></span><span>風 <b>${w.windKph}km/h</b></span></div>
+      ${w.hint?`<div class="w-hint">${esc(w.hint)}</div>`:''}
+      ${hoursHTML||''}
+      <div class="w-loc">📍 ${esc(w.loc)}</div>`;
   }
   async function loadWeather(city){
     const card=document.getElementById('weatherCard');
+    // キャッシュがあれば即表示（空/エラーで固まらない）。裏で最新取得して差し替える。
+    let wc=null; try{wc=JSON.parse(localStorage.getItem('cache_weather')||'null');}catch(_){}
+    if(wc&&wc.w){ currentWeather=wc.w; try{renderOutfit(wc.w);}catch(_){} card.innerHTML=weatherCardInner(wc.w,wc.hoursHTML,false); }
     const isDefault = city===(CFG.DEFAULT_CITY||'');
+    // 緯度経度の解決（既定都市は座標直指定。それ以外はジオコーディング、失敗時は既定座標へ）
+    let lat,lon,label;
     try{
-      let lat,lon,label;
-      if(isDefault && CFG.DEFAULT_COORDS){
-        const [a,b]=CFG.DEFAULT_COORDS.split(',');lat=+a;lon=+b;label=CFG.CITY_LABEL||city;
-      }else{
-        const g=await geocodeCity(city);lat=g.lat;lon=g.lon;label=(isDefault&&CFG.CITY_LABEL)?CFG.CITY_LABEL:g.label;
-      }
-      const wurl=`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}`
-        +`&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m`
-        +`&hourly=temperature_2m,weather_code,precipitation_probability&forecast_days=2`
-        +`&wind_speed_unit=kmh&timezone=auto&_=${Date.now()}`;
-      const res=await fetchT(wurl,{cache:'no-store'},8000);
-      if(!res.ok)throw new Error('open-meteo '+res.status);
-      const d=await res.json();const cu=d.current;
-      const wm=WMO[cu.weather_code]||['🌡️','—'];
-      // ── 時間帯予報（今から12時間ぶんを2時間刻み）＋「いつ晴れ/雨か」のヒント ──
-      const H=d.hourly||{}; const blocks=[]; let hint='';
-      if(H.time&&H.time.length){
-        let s=H.time.findIndex(t=>t>=cu.time); if(s<0)s=0;
-        for(let i=s;i<H.time.length&&blocks.length<6;i+=2){
-          const dt=new Date(H.time[i]); const wmh=WMO[H.weather_code[i]]||['🌡️',''];
-          const pop=H.precipitation_probability?H.precipitation_probability[i]:null;
-          blocks.push({h:dt.getHours(),icon:wmh[0],temp:Math.round(H.temperature_2m[i]),pop});
-        }
-        // 今日の見通し
-        const today=cu.time.slice(0,10); let rainAt=null,sunAt=null,allClear=true;
-        for(let i=s;i<H.time.length;i++){
-          if(!String(H.time[i]).startsWith(today))break;
-          const code=H.weather_code[i], pop=H.precipitation_probability?H.precipitation_probability[i]:0;
-          const hr=new Date(H.time[i]).getHours();
-          if((code>=51||pop>=50)&&rainAt===null) rainAt=hr;
-          if(code<=1&&sunAt===null) sunAt=hr;
-          if(code>=3) allClear=false;
-        }
-        if(rainAt!==null) hint=`🌧️ ${rainAt}時ごろから雨の可能性（折りたたみ傘を）`;
-        else if(allClear) hint='☀️ 今日は日中ずっと晴れの見込み';
-        else if(sunAt!==null) hint=`🌤 ${sunAt}時ごろから晴れる見込み`;
-        else hint='⛅ くもりがち。雨の心配は少なめ';
-      }
-      const w={tempC:Math.round(cu.temperature_2m),feels:Math.round(cu.apparent_temperature),
-        humidity:cu.relative_humidity_2m,windKph:Math.round(cu.wind_speed_10m),
-        desc:wm[1],code:cu.weather_code,icon:wm[0],loc:label,hint};
-      currentWeather=w; renderOutfit(w); renderBrief();
-      const hoursHTML = blocks.length? `<div class="w-hours">${blocks.map(b=>
-        `<div class="wh"><div class="wh-t">${b.h}時</div><div class="wh-i">${b.icon}</div><div class="wh-d">${b.temp}°</div>${(b.pop>=20)?`<div class="wh-p">💧${b.pop}%</div>`:''}</div>`).join('')}</div>` : '';
-      card.innerHTML=`<div class="ctitle"><span class="ico">🌤</span>天気<span class="more" onclick="loadWeather(document.getElementById('cityInput').value.trim()||'${esc(CFG.DEFAULT_CITY||'Tokyo')}')">↻</span></div>
-        <div class="w-top">
-          <div class="w-ico">${w.icon||'🌡️'}</div>
-          <div class="w-temp">${w.tempC}<small>°C</small></div>
-          <div class="w-desc">${esc(w.desc)}</div>
-        </div>
-        <div class="w-stats">
-          <span>体感 <b>${w.feels}°</b></span><span>湿度 <b>${w.humidity}%</b></span><span>風 <b>${w.windKph}km/h</b></span>
-        </div>
-        ${hint?`<div class="w-hint">${hint}</div>`:''}
-        ${hoursHTML}
-        <div class="w-loc">📍 ${esc(w.loc)}</div>`;
-    }catch(e){
-      card.innerHTML=`<div class="ctitle"><span class="ico">🌤</span>天気</div><div class="err">天気の取得に失敗しました。都市名を確認してください。</div>`;
+      if(isDefault && CFG.DEFAULT_COORDS){ const [a,b]=CFG.DEFAULT_COORDS.split(',');lat=+a;lon=+b;label=CFG.CITY_LABEL||city; }
+      else{ const g=await geocodeCity(city);lat=g.lat;lon=g.lon;label=(isDefault&&CFG.CITY_LABEL)?CFG.CITY_LABEL:g.label; }
+    }catch(_){ if(CFG.DEFAULT_COORDS){ const [a,b]=CFG.DEFAULT_COORDS.split(',');lat=+a;lon=+b;label=CFG.CITY_LABEL||city; } }
+    if(lat==null){ if(!(wc&&wc.w)) card.innerHTML=`<div class="ctitle"><span class="ico">🌤</span>天気</div><div class="err">都市が見つかりませんでした。別の都市名（ローマ字推奨）でお試しください。</div>`; return; }
+    const wurl=`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}`
+      +`&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m`
+      +`&hourly=temperature_2m,weather_code,precipitation_probability&forecast_days=2`
+      +`&wind_speed_unit=kmh&timezone=auto&_=${Date.now()}`;
+    const d=await omFetch(wurl,8000);
+    if(!d||!d.current){
+      // 取得失敗 → 前回キャッシュを表示（無ければエラー）
+      if(wc&&wc.w){ card.innerHTML=weatherCardInner(wc.w,wc.hoursHTML,true); }
+      else card.innerHTML=`<div class="ctitle"><span class="ico">🌤</span>天気<span class="more" onclick="loadWeather('${esc(CFG.DEFAULT_CITY||'Tokyo')}')">↻</span></div><div class="err">天気を取得できませんでした。少し時間を置いて ↻ で再試行してください。</div>`;
+      return;
     }
+    const cu=d.current; const wm=WMO[cu.weather_code]||['🌡️','—'];
+    const H=d.hourly||{}; const blocks=[]; let hint='';
+    if(H.time&&H.time.length){
+      let s=H.time.findIndex(t=>t>=cu.time); if(s<0)s=0;
+      for(let i=s;i<H.time.length&&blocks.length<6;i+=2){
+        const dt=new Date(H.time[i]); const wmh=WMO[H.weather_code[i]]||['🌡️',''];
+        const pop=H.precipitation_probability?H.precipitation_probability[i]:null;
+        blocks.push({h:dt.getHours(),icon:wmh[0],temp:Math.round(H.temperature_2m[i]),pop});
+      }
+      const today=cu.time.slice(0,10); let rainAt=null,sunAt=null,allClear=true;
+      for(let i=s;i<H.time.length;i++){
+        if(!String(H.time[i]).startsWith(today))break;
+        const code=H.weather_code[i], pop=H.precipitation_probability?H.precipitation_probability[i]:0;
+        const hr=new Date(H.time[i]).getHours();
+        if((code>=51||pop>=50)&&rainAt===null) rainAt=hr;
+        if(code<=1&&sunAt===null) sunAt=hr;
+        if(code>=3) allClear=false;
+      }
+      if(rainAt!==null) hint=`🌧️ ${rainAt}時ごろから雨の可能性（折りたたみ傘を）`;
+      else if(allClear) hint='☀️ 今日は日中ずっと晴れの見込み';
+      else if(sunAt!==null) hint=`🌤 ${sunAt}時ごろから晴れる見込み`;
+      else hint='⛅ くもりがち。雨の心配は少なめ';
+    }
+    const w={tempC:Math.round(cu.temperature_2m),feels:Math.round(cu.apparent_temperature),
+      humidity:cu.relative_humidity_2m,windKph:Math.round(cu.wind_speed_10m),
+      desc:wm[1],code:cu.weather_code,icon:wm[0],loc:label,hint};
+    const hoursHTML = blocks.length? `<div class="w-hours">${blocks.map(b=>
+      `<div class="wh"><div class="wh-t">${b.h}時</div><div class="wh-i">${b.icon}</div><div class="wh-d">${b.temp}°</div>${(b.pop>=20)?`<div class="wh-p">💧${b.pop}%</div>`:''}</div>`).join('')}</div>` : '';
+    currentWeather=w; renderOutfit(w); renderBrief();
+    card.innerHTML=weatherCardInner(w,hoursHTML,false);
+    try{localStorage.setItem('cache_weather',JSON.stringify({ts:Date.now(),w,hoursHTML}));}catch(_){}
   }
 
   /* ── Market (sparkline) ──────────────────────────── */

@@ -14,6 +14,7 @@ export default async function handler(req, res) {
     'www.nhk.or.jp', 'www3.nhk.or.jp', 'news.yahoo.co.jp',
     'feeds.bbci.co.uk', 'bbci.co.uk', 'www.aljazeera.com', 'aljazeera.com',
     'api.semanticscholar.org', 'api.openalex.org', 'wttr.in',
+    'api.open-meteo.com', 'geocoding-api.open-meteo.com',
   ];
   let host;
   try { host = new URL(target).hostname; } catch { res.status(400).json({ error: 'bad url' }); return; }
