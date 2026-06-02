@@ -368,29 +368,14 @@
 
     <!-- Row 5: AI Coach -->
     <div class="card coach">
-      <div class="ctitle"><span class="ico">🧭</span>今日のAIコーチからの提案</div>
-      <div class="coach-grid">
-        <div class="coach-cell">
-          <div class="cl">🎯 今日のFocus</div>
-          <div class="cv" id="coachFocus">—</div>
-          <div class="miniprog"><i id="focusProg" style="width:0%"></i></div>
-        </div>
-        <div class="coach-cell">
-          <div class="cl">📊 研究活動ログ</div>
-          <div class="cv" id="coachLog">—</div>
-        </div>
-        <div class="coach-cell">
-          <div class="cl">🏆 PhD準備スコア</div>
-          <div class="phd-num"><span id="phdScore">67</span><small>/100</small></div>
-          <div class="phd-tr" id="phdTrend">前日比 +0.0</div>
-        </div>
-        <div class="coach-cell">
-          <div class="cl">🌅 状態</div>
-          <div class="cv" id="coachState">START を押して<br>今日を記録</div>
-        </div>
-        <div class="coach-cell start-wrap">
-          <button class="start" id="startBtn" onclick="startDay()">START<br>YOUR DAY</button>
-        </div>
+      <div class="ctitle"><span class="ico">🧭</span>今日のAIコーチ<span class="more" onclick="renderCoach()">↻</span></div>
+      <div class="coach-cell">
+        <div class="cl">🎯 今日のFocus</div>
+        <div class="cv" id="coachFocus">—</div>
+      </div>
+      <div class="trend-box" style="margin-top:12px">
+        <div class="trend-h">🧠 コーチからのアドバイス</div>
+        <div id="coachAdviceSlot"><div class="brief">…</div></div>
       </div>
     </div>
 
@@ -729,6 +714,7 @@
         +`<div class="trend-box" style="margin-top:12px"><div class="trend-h">📰 最近のニュースの傾向</div>`
         +`<div id="newsTrendSlot"><div class="brief">${aiAvailable()?'傾向を分析中…':'⚙️設定でAIキーを入れると傾向の要約が出ます。'}</div></div></div>`;
       newsTrendAuto().then(h=>{const s=document.getElementById('newsTrendSlot');if(s)s.innerHTML=h;}).catch(()=>{});
+      try{renderCoach();}catch(_){}  // ニュースが揃ったらコーチ助言も更新
     }catch(_){
       card.innerHTML=`<div class="ctitle"><span class="ico">⚡</span>News Flash</div><div class="err">ニュースの取得に失敗しました。</div>`;
     }
@@ -830,6 +816,7 @@
     if(aiAvailable() && document.getElementById('careerAdviceSlot')){
       careerAdviceAuto().then(html=>{const s=document.getElementById('careerAdviceSlot');if(s)s.innerHTML=html;}).catch(()=>{});
     }
+    try{renderCoach();}catch(_){}   // 論文が揃ったらコーチ助言も更新
   }
   function paperItemHTML(it){
     const ago=it.date?timeAgo(it.date):'';
@@ -967,7 +954,7 @@
     }).join('');
     card.innerHTML=`<div class="ctitle"><span class="ico">💼</span>Career Radar</div>${html}
       <div class="trend-box" style="margin-top:12px"><div class="trend-h">🏢 企業別まとめ＆あなた専用アドバイス</div>
-        <div id="careerAdviceSlot"><div class="brief">${aiAvailable()?'各社の動向とあなたのプロフィールを分析中…':'⚙️設定でAIキーを入れると、各社まとめ＋あなた専用の助言が出ます。'}</div></div></div>`;
+        <div id="careerAdviceSlot">${aiAvailable()?'<div class="brief">各社の動向とあなたのプロフィールを分析中…</div>':careerAdviceLocal()}</div></div>`;
     if(aiAvailable()) careerAdviceAuto().then(html=>{const s=document.getElementById('careerAdviceSlot');if(s)s.innerHTML=html;}).catch(()=>{});
   }
   // 各社まとめ ＋ ペルソナ向けキャリア助言を生成
@@ -981,10 +968,21 @@
       const system='あなたは自動運転(AD/ADAS)業界とAI研究キャリアに精通したアドバイザーです。各社の自動運転戦略を正確かつ簡潔にまとめ、対象者本人のプロフィールに完全に合わせた実行可能な助言を日本語で出します。事実を捏造せず、与えた前提に従うこと。一般論や挨拶は不要。Markdownの**太字**と「- 」箇条書きのみ使用。';
       const user=`【対象者プロフィール】\n${persona}\n\n${facts}\n\n【対象企業】\n${cos.join(', ')}\n\n【今日の研究トレンド（最新論文）】\n${papers}\n\n次の構成で出力してください:\n\n## 企業別まとめ\n各社を1行ずつ「**社名**: AD/ADASの注力点・技術的特徴（1文）→ あなたの強み(VLM/eHMI/V2X/駐車/日産での実務)を踏まえた狙い方(1文)」。${cos.length}社すべて。\n\n## あなたへの総合キャリア戦略\n- 🎯 直近の一手: 今の日産での立ち位置を活かして今週着手すべき具体行動\n- 🧩 埋めるべきギャップ: 海外トップ研究職/PhDに向けて不足しがちな点と補い方\n- 📨 アピール戦略: 選考やコネクションで効くポートフォリオ・発信の見せ方\n- 🌏 中長期: PhD・国際研究連携・Research Scientist到達への筋道`;
       const t=await callLLMQueued(system,user,1500);
-      const html=`<div class="brief">${mdLite(t)}</div>`; aiCacheSet(ck,html); return html;
+      const html=`<div class="brief">${mdLite(t)}</div>`;
+      aiCacheSet(ck,html);
+      try{localStorage.setItem('career_last',html);}catch(_){}  // 永続：他デバイス/失敗時の最終フォールバック
+      return html;
     }catch(e){
-      return `<div class="brief" style="color:var(--faint)">アドバイス生成に失敗しました（${esc(String(e.message||e)).slice(0,60)}）。</div>`;
+      // 失敗時は前回の成功結果を表示（無ければローカル要約）。空やエラーで終わらせない。
+      let last=null; try{last=localStorage.getItem('career_last');}catch(_){}
+      if(last) return last.replace('<div class="brief">','<div class="brief">⚠️ 最新生成は混雑中。前回の結果を表示中。<br>');
+      return careerAdviceLocal();
     }
+  }
+  function careerAdviceLocal(){
+    const cos=(CFG.WATCH_COMPANIES||DEFAULT_COMPANIES);
+    const items=cos.map(c=>`・<b>${esc(c)}</b>: 採用ページ/技術ブログを確認し、自分のVLM/eHMI/V2X実績との接点を1つメモ`).join('<br>');
+    return `<div class="brief"><div class="md-h">企業別チェック</div>${items}<br><span style="color:var(--faint);font-size:11px">※ AIキー/サーバ設定で各社の詳細まとめ＋あなた専用戦略が出ます</span></div>`;
   }
 
   /* ── AI Briefing summary ─────────────────────────── */
@@ -998,9 +996,9 @@
     }
     const sp=window._spChart;
     if(sp){const d=sp.meta.regularMarketPrice-sp.meta.chartPreviousClose;bits.push(`S&P500 は${d>=0?'上昇':'下落'}基調。`);}
-    const st=getStats();
-    bits.push(`PhD準備スコア <b>${st.score}</b>。`);
-    bits.push(st.startedToday?'今日のスタート記録済み ✅':'STARTを押して今日を始めましょう。');
+    const p=_latestResearchItems[0]?.title;
+    if(p)bits.push(`📄 注目論文「${esc(p).slice(0,40)}」。`);
+    bits.push('今日も一歩、未来の研究へ。');
     return bits.join(' ');
   }
   function renderBrief(){
@@ -1008,14 +1006,13 @@
   }
 
   function buildContext(){
-    const st=getStats();
-    const recent=(st.logDates||[]).filter(d=>(Date.now()-new Date(d))<7*864e5).length;
     const lines=[];
     if(currentWeather){lines.push(`天気(${CFG.CITY_LABEL||''}): ${currentWeather.tempC}°C 体感${currentWeather.feels}°C ${currentWeather.desc} 湿度${currentWeather.humidity}% 風${currentWeather.windKph}km/h`);
       if(currentWeather.hint)lines.push(`時間帯の見通し: ${currentWeather.hint}`);}
     const sp=window._spChart;
     if(sp){const d=sp.meta.regularMarketPrice-sp.meta.chartPreviousClose;lines.push(`S&P500: ${sp.meta.regularMarketPrice.toFixed(2)} (前日比 ${d>=0?'+':''}${d.toFixed(2)})`);}
-    lines.push(`PhD準備スコア: ${st.score}/100, 直近7日の研究活動: ${recent}日, 今日のスタート: ${st.startedToday?'済':'未'}`);
+    const p=_latestResearchItems.slice(0,2).map(x=>x.title).filter(Boolean).join(' / ');
+    if(p)lines.push(`注目論文: ${p}`);
     const tasks=getLT();
     if(tasks.length)lines.push(`未完了タスク: ${tasks.filter(t=>!t.done).map(t=>t.title).slice(0,5).join(', ')||'なし'}`);
     return lines.join('\n');
@@ -1168,34 +1165,39 @@
   const FOCUS=['eHMIの論文を1本読む','実装コードをGitHubにpush','英語でアブストラクトを要約','指導教員候補にメール下書き','関連学会のCFPを確認','研究ログを1段落書く','先週の進捗を振り返る'];
 
   function renderCoach(){
-    const s=getStats();
-    // reset startedToday if new day
-    if(s.lastDate && s.lastDate!==todayKey()){s.startedToday=false;}
-    const focus=FOCUS[now.getDate()%FOCUS.length];
-    document.getElementById('coachFocus').innerHTML=`${esc(focus)}を推奨します。`;
-    document.getElementById('focusProg').style.width=(s.startedToday?100:0)+'%';
-    const recent=(s.logDates||[]).filter(d=>{const dd=new Date(d);return (Date.now()-dd)<7*864e5;}).length;
-    document.getElementById('coachLog').innerHTML= recent>=4
-      ? `直近7日で<b style="color:#67e8b0">${recent}日</b>活動。good pace！`
-      : `今週は研究活動が少なめ（${recent}日）。<br>ログ記録を習慣化しましょう。`;
-    document.getElementById('phdScore').textContent=s.score;
-    const hist=s.history||[];
-    const tr= hist.length>=2 ? (hist[hist.length-1].score-hist[hist.length-2].score) : 0;
-    document.getElementById('phdTrend').textContent=`前日比 ${tr>=0?'+':''}${tr.toFixed(1)}`;
-    document.getElementById('coachState').innerHTML=s.startedToday?'今日のスタート<br>記録済み ✅':'START を押して<br>今日を記録';
-    document.getElementById('startBtn').innerHTML=s.startedToday?'DONE ✓':'START<br>YOUR DAY';
-    setStats(s);
+    const fEl=document.getElementById('coachFocus');
+    if(fEl) fEl.innerHTML=`${esc(FOCUS[now.getDate()%FOCUS.length])}を推奨します。`;
+    const slot=document.getElementById('coachAdviceSlot'); if(!slot) return;
+    if(!aiAvailable()){ slot.innerHTML=`<div class="brief">⚙️設定でAIキーを入れると、今日の具体的な助言が出ます。</div>`; return; }
+    const cur=slot.textContent.trim();
+    if(cur===''||cur==='…') slot.innerHTML=`<div class="brief">ニュース・論文・企業動向から助言を作成中…</div>`;
+    coachAdviceAuto().then(html=>{const s=document.getElementById('coachAdviceSlot');if(s)s.innerHTML=html;}).catch(()=>{});
   }
-  function startDay(){
-    const s=getStats();
-    const tk=todayKey();
-    if(s.startedToday && s.lastDate===tk){toast('今日はすでにスタート済みです ✅');return;}
-    s.startedToday=true; s.lastDate=tk;
-    s.logDates=[...new Set([...(s.logDates||[]),tk])];
-    s.score=Math.min(100,Math.round((s.score+1.5)*10)/10);
-    s.history=[...(s.history||[]),{date:tk,score:s.score}].slice(-60);
-    setStats(s); renderCoach(); renderBrief();
-    toast('☀️ 今日をスタート！ PhDスコア +1.5');
+  // コーチアドバイス：ニュース・論文・企業別まとめを中心に、本人向けの具体的な行動を生成（堅牢）
+  function coachAdviceLocal(){
+    const news=_latestNewsItems.slice(0,2).map(x=>x.title).filter(Boolean).join(' / ');
+    const papers=_latestResearchItems.slice(0,2).map(x=>x.title).filter(Boolean).join(' / ');
+    const bits=[];
+    if(papers)bits.push(`📄 注目論文「${esc(papers)}」を30分だけ要点読み。`);
+    if(news)bits.push(`📰 ニュース「${esc(news)}」を自分の研究テーマと絡めて1メモ。`);
+    bits.push('🎯 企業の最新動向を1社チェックし、刺さる実績を1つ言語化。');
+    return `<div class="brief">${bits.join('<br>')}</div>`;
+  }
+  async function coachAdviceAuto(){
+    if(!aiAvailable()) return coachAdviceLocal();
+    try{
+      const persona=CFG.USER_PERSONA||(CFG.USER_NAME?`${CFG.USER_NAME}（自動運転・AI研究志望）`:'自動運転・AI研究を志す若手エンジニア');
+      const news=_latestNewsItems.slice(0,5).map(x=>'・'+x.title).join('\n')||'（未取得）';
+      const papers=_latestResearchItems.slice(0,5).map(x=>'・'+x.title).join('\n')||'（未取得）';
+      const cos=(CFG.WATCH_COMPANIES||DEFAULT_COMPANIES).join(', ');
+      const ck='coach_'+sig(news+papers+cos); const cached=aiCacheGet(ck); if(cached) return cached;
+      const system='あなたは対象者専属の研究・キャリアコーチです。今日のニュース・最新論文・志望企業の動向を踏まえ、本人が今日実行できる具体的アクションを日本語で提案します。一般論は避け本人の研究/キャリアに直結させること。各項目1〜2文、文頭に絵文字。前置き・締めは不要。Markdownの**太字**と「- 」のみ。';
+      const user=`【対象者】${persona}\n\n【今日のニュース】\n${news}\n\n【最新の研究論文】\n${papers}\n\n【志望企業】${cos}\n\n上記を結びつけ、次の3点を出力:\n📄 研究の一手: 今日の論文/動向を踏まえ研究を進める具体行動\n📰 視野を広げる: ニュースを自分の研究・キャリアにどう活かすか\n🎯 キャリアの一手: 志望企業に近づくため今日できること`;
+      const t=await callLLMQueued(system,user,600);
+      const html=`<div class="brief">${mdLite(t)}</div>`; aiCacheSet(ck,html); return html;
+    }catch(e){
+      return coachAdviceLocal();
+    }
   }
 
   function toast(msg){
