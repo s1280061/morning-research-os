@@ -3,6 +3,10 @@
 自動運転・AI研究者向けの「研究パーソナルOS」PWA。
 **フロントは静的サイト（バニラJS）**、**APIキーや混雑しやすい外部APIはVercelのサーバーレス関数が代理**する構成。
 
+![Architecture](docs/architecture.png)
+
+> 画像版: [docs/architecture.png](docs/architecture.png) ／ 高解像度 [docs/architecture@2x.png](docs/architecture@2x.png) ／ ベクター [docs/architecture.svg](docs/architecture.svg)
+
 ---
 
 ## 1. システム全体構成
