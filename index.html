@@ -572,7 +572,7 @@
     if(lat==null){ if(!(wc&&wc.w)) card.innerHTML=`<div class="ctitle"><span class="ico">🌤</span>天気</div><div class="err">都市が見つかりませんでした。別の都市名（ローマ字推奨）でお試しください。</div>`; return; }
     const wurl=`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}`
       +`&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,uv_index`
-      +`&hourly=temperature_2m,weather_code,precipitation_probability&daily=uv_index_max&forecast_days=2`
+      +`&hourly=temperature_2m,weather_code,precipitation_probability,precipitation&daily=uv_index_max&forecast_days=2`
       +`&wind_speed_unit=kmh&timezone=auto&_=${Date.now()}`;
     const d=await omFetch(wurl,8000);
     if(!d||!d.current){
@@ -585,17 +585,22 @@
     const H=d.hourly||{}; const blocks=[]; let hint='';
     if(H.time&&H.time.length){
       let s=H.time.findIndex(t=>t>=cu.time); if(s<0)s=0;
+      // Open-Meteoは晴れコード(0,1)でも降水確率だけ高い矛盾値を返すことがある。
+      // 実際に「雨」と見なすのは降水コード(>=51) or 降水量>0 のときだけ、と整合させる。
+      const isRain=(code,mm)=>code>=51||(mm||0)>=0.1;
       for(let i=s;i<H.time.length&&blocks.length<6;i+=2){
-        const dt=new Date(H.time[i]); const wmh=WMO[H.weather_code[i]]||['🌡️',''];
+        const dt=new Date(H.time[i]); const code=H.weather_code[i]; const wmh=WMO[code]||['🌡️',''];
+        const mm=H.precipitation?H.precipitation[i]:0;
         const pop=H.precipitation_probability?H.precipitation_probability[i]:null;
-        blocks.push({h:dt.getHours(),icon:wmh[0],temp:Math.round(H.temperature_2m[i]),pop});
+        // 💧は実際に降水が見込まれる時間だけ表示（晴れなのに高%、は出さない）
+        blocks.push({h:dt.getHours(),icon:wmh[0],temp:Math.round(H.temperature_2m[i]),pop:isRain(code,mm)?pop:null});
       }
       const today=cu.time.slice(0,10); let rainAt=null,sunAt=null,allClear=true;
       for(let i=s;i<H.time.length;i++){
         if(!String(H.time[i]).startsWith(today))break;
-        const code=H.weather_code[i], pop=H.precipitation_probability?H.precipitation_probability[i]:0;
+        const code=H.weather_code[i], mm=H.precipitation?H.precipitation[i]:0;
         const hr=new Date(H.time[i]).getHours();
-        if((code>=51||pop>=50)&&rainAt===null) rainAt=hr;
+        if(isRain(code,mm)&&rainAt===null) rainAt=hr;
         if(code<=1&&sunAt===null) sunAt=hr;
         if(code>=3) allClear=false;
       }
