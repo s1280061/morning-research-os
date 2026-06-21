@@ -130,7 +130,7 @@
 
     /* Weather mini */
     .w-top{display:flex;align-items:center;gap:10px;}
-    .w-ico{font-size:42px;line-height:1;}
+    .w-ico{font-size:42px;line-height:1;display:flex;align-items:center;justify-content:center;}
     .w-temp{font-size:34px;font-weight:800;letter-spacing:-1px;}
     .w-temp small{font-size:18px;font-weight:700;color:var(--sub);}
     .w-desc{font-size:13px;color:var(--ink2);font-weight:600;margin-left:auto;text-align:right;}
@@ -141,7 +141,7 @@
     .w-hours{display:flex;gap:6px;margin-top:8px;overflow-x:auto;padding-bottom:2px;-webkit-overflow-scrolling:touch;}
     .wh{flex:0 0 auto;min-width:48px;text-align:center;background:rgba(120,140,255,.07);border-radius:12px;padding:7px 6px;}
     .wh-t{font-size:10.5px;color:var(--ink2);}
-    .wh-i{font-size:17px;line-height:1.3;}
+    .wh-i{font-size:17px;line-height:1.3;display:flex;align-items:center;justify-content:center;min-height:24px;}
     .wh-d{font-size:12px;font-weight:700;color:var(--ink);}
     .wh-p{font-size:9.5px;color:var(--blue);}
 
@@ -523,6 +523,21 @@
     if(uv<11) return {v,lvl:'非常に強い',col:'var(--red)', tip:'🧴🧢🕶 UV非常に強い。日中の外出は日陰を意識'};
     return {v,lvl:'極端',col:'#b91c4b', tip:'⚠️ UV極端。長時間の屋外活動は避けて'};
   }
+  // WMOコード → 統一デザインのSVG天気アイコン（絵文字レンダリング崩れを回避）
+  function wxSVG(code,px=42){
+    const SUN='#f5a524', CL='#aebfd6', CLD='#7e96b8', RN='#3d8bf2', SN='#bcd3ef', BOLT='#f5a524';
+    const wrap=g=>`<svg viewBox="0 0 64 64" width="${px}" height="${px}" style="display:block;flex:none">${g}</svg>`;
+    const sun=(cx,cy,r)=>{let rays='';for(let k=0;k<8;k++){const a=k*Math.PI/4,x1=cx+Math.cos(a)*(r+4),y1=cy+Math.sin(a)*(r+4),x2=cx+Math.cos(a)*(r+9),y2=cy+Math.sin(a)*(r+9);rays+=`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}"/>`;}return `<g stroke="${SUN}" stroke-width="3.2" stroke-linecap="round">${rays}</g><circle cx="${cx}" cy="${cy}" r="${r}" fill="${SUN}"/>`;};
+    const cloud=(f,dx=0,dy=0,sc=1)=>`<g transform="translate(${dx} ${dy}) scale(${sc})"><path d="M45 47H21A11.5 11.5 0 0 1 19.5 24.3 16 16 0 0 1 50 29 10 10 0 0 1 45 47Z" fill="${f}"/></g>`;
+    if(code===0||code===1) return wrap(sun(32,32,13));
+    if(code===2) return wrap(sun(23,22,9)+cloud(CL,3,9,1));
+    if(code===3) return wrap(cloud(CLD,-3,2,.95)+cloud(CL,5,4,.9));
+    if(code===45||code===48) return wrap(cloud(CL,0,-3)+`<g stroke="${CLD}" stroke-width="3" stroke-linecap="round"><line x1="16" y1="51" x2="44" y2="51"/><line x1="21" y1="58" x2="49" y2="58"/></g>`);
+    if((code>=71&&code<=77)||code===85||code===86) return wrap(cloud(CL,0,-4)+`<g fill="${SN}"><circle cx="24" cy="55" r="3"/><circle cx="34" cy="59" r="3"/><circle cx="44" cy="55" r="3"/></g>`);
+    if(code>=95) return wrap(cloud(CLD,0,-4)+`<path d="M35 45l-9 13h6l-3 9 11-15h-7l5-7z" fill="${BOLT}"/>`);
+    if(code>=51) return wrap(cloud(CL,0,-4)+`<g stroke="${RN}" stroke-width="3.4" stroke-linecap="round"><line x1="24" y1="51" x2="21" y2="60"/><line x1="34" y1="51" x2="31" y2="60"/><line x1="44" y1="51" x2="41" y2="60"/></g>`);
+    return wrap(sun(32,32,13));
+  }
   let currentWeather=null;
   // Open-Meteo取得（直叩き2回リトライ→同一オリジンproxyフォールバック）
   async function omFetch(url,ms=8000){
@@ -550,7 +565,7 @@
       : (uviMax ? `本日のUV最大 ${uviMax.v}（${uviMax.lvl}）— ${uviMax.tip}` : '');
     return `<div class="ctitle"><span class="ico">🌤</span>天気${refresh}</div>
       ${stale?`<div style="font-size:11px;color:var(--faint);margin-bottom:6px">⚠️ 最新の取得に失敗。前回の天気を表示中（↻で再試行）</div>`:''}
-      <div class="w-top"><div class="w-ico">${w.icon||'🌡️'}</div><div class="w-temp">${w.tempC}<small>°C</small></div><div class="w-desc">${esc(w.desc)}</div></div>
+      <div class="w-top"><div class="w-ico">${(w.code!=null)?wxSVG(w.code,46):(w.icon||'🌡️')}</div><div class="w-temp">${w.tempC}<small>°C</small></div><div class="w-desc">${esc(w.desc)}</div></div>
       <div class="w-stats"><span>体感 <b>${w.feels}°</b></span><span>湿度 <b>${w.humidity}%</b></span><span>風 <b>${w.windKph}km/h</b></span>${uvStat}</div>
       ${w.hint?`<div class="w-hint">${esc(w.hint)}</div>`:''}
       ${uvTip?`<div class="w-hint" style="font-weight:600;color:var(--ink2)">${esc(uvTip)}</div>`:''}
@@ -593,7 +608,7 @@
         const mm=H.precipitation?H.precipitation[i]:0;
         const pop=H.precipitation_probability?H.precipitation_probability[i]:null;
         // 💧は実際に降水が見込まれる時間だけ表示（晴れなのに高%、は出さない）
-        blocks.push({h:dt.getHours(),icon:wmh[0],temp:Math.round(H.temperature_2m[i]),pop:isRain(code,mm)?pop:null});
+        blocks.push({h:dt.getHours(),icon:wmh[0],code,temp:Math.round(H.temperature_2m[i]),pop:isRain(code,mm)?pop:null});
       }
       const today=cu.time.slice(0,10); let rainAt=null,sunAt=null,allClear=true;
       for(let i=s;i<H.time.length;i++){
@@ -616,7 +631,7 @@
       humidity:cu.relative_humidity_2m,windKph:Math.round(cu.wind_speed_10m),
       desc:wm[1],code:cu.weather_code,icon:wm[0],loc:label,hint,uv:uvNow,uvMax};
     const hoursHTML = blocks.length? `<div class="w-hours">${blocks.map(b=>
-      `<div class="wh"><div class="wh-t">${b.h}時</div><div class="wh-i">${b.icon}</div><div class="wh-d">${b.temp}°</div>${(b.pop>=20)?`<div class="wh-p">💧${b.pop}%</div>`:''}</div>`).join('')}</div>` : '';
+      `<div class="wh"><div class="wh-t">${b.h}時</div><div class="wh-i">${(b.code!=null)?wxSVG(b.code,24):b.icon}</div><div class="wh-d">${b.temp}°</div>${(b.pop>=20)?`<div class="wh-p">💧${b.pop}%</div>`:''}</div>`).join('')}</div>` : '';
     currentWeather=w; renderOutfit(w); renderBrief();
     card.innerHTML=weatherCardInner(w,hoursHTML,false);
     try{localStorage.setItem('cache_weather',JSON.stringify({ts:Date.now(),w,hoursHTML}));}catch(_){}
