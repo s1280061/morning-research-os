@@ -134,7 +134,7 @@
     .w-temp{font-size:34px;font-weight:800;letter-spacing:-1px;}
     .w-temp small{font-size:18px;font-weight:700;color:var(--sub);}
     .w-desc{font-size:13px;color:var(--ink2);font-weight:600;margin-left:auto;text-align:right;}
-    .w-stats{display:flex;gap:14px;margin-top:12px;font-size:12px;color:var(--ink2);}
+    .w-stats{display:flex;flex-wrap:wrap;gap:8px 14px;margin-top:12px;font-size:12px;color:var(--ink2);}
     .w-stats b{color:var(--ink);}
     .w-loc{font-size:11.5px;color:var(--blue);margin-top:10px;display:flex;align-items:center;gap:4px;}
     .w-hint{font-size:12px;font-weight:700;color:var(--ink);margin-top:12px;}
@@ -513,6 +513,16 @@
     71:['🌨️','弱い雪'],73:['🌨️','雪'],75:['❄️','強い雪'],77:['🌨️','霧雪'],
     80:['🌦️','にわか雨'],81:['🌧️','にわか雨'],82:['🌧️','激しいにわか雨'],85:['🌨️','にわか雪'],86:['❄️','強いにわか雪'],
     95:['⛈️','雷雨'],96:['⛈️','雷雨(ひょう)'],99:['⛈️','激しい雷雨(ひょう)']};
+  // UV指数 → レベル(色・ラベル・対策ヒント)。WHO区分準拠。
+  function uvInfo(uv){
+    if(uv==null||isNaN(uv)) return null;
+    const v=Math.round(uv);
+    if(uv<3)  return {v,lvl:'弱い',col:'var(--green)', tip:'☀️ UV弱め。特別な対策は不要です'};
+    if(uv<6)  return {v,lvl:'中程度',col:'var(--amber)', tip:'🧴 UV中程度。日中は日焼け止めがおすすめ'};
+    if(uv<8)  return {v,lvl:'強い',col:'#ff7a45', tip:'🧴🧢 UV強め。日焼け止め＋帽子・サングラスを'};
+    if(uv<11) return {v,lvl:'非常に強い',col:'var(--red)', tip:'🧴🧢🕶 UV非常に強い。日中の外出は日陰を意識'};
+    return {v,lvl:'極端',col:'#b91c4b', tip:'⚠️ UV極端。長時間の屋外活動は避けて'};
+  }
   let currentWeather=null;
   // Open-Meteo取得（直叩き2回リトライ→同一オリジンproxyフォールバック）
   async function omFetch(url,ms=8000){
@@ -531,11 +541,19 @@
   }
   function weatherCardInner(w,hoursHTML,stale){
     const refresh=`<span class="more" onclick="loadWeather(document.getElementById('cityInput').value.trim()||'${esc(CFG.DEFAULT_CITY||'Tokyo')}')">↻</span>`;
+    // UV指数: 現在値の情報を優先。夜間など現在UVが0でも今日の最大値があれば対策ヒントを出す。
+    const uvi=uvInfo(w.uv), uviMax=uvInfo(w.uvMax);
+    const uvStat = uvi
+      ? `<span>UV <b style="color:${uvi.col}">${uvi.v}</b> <span style="color:${uvi.col};font-weight:700">${uvi.lvl}</span></span>`
+      : '';
+    const uvTip = (uvi && uvi.v>=1) ? uvi.tip
+      : (uviMax ? `本日のUV最大 ${uviMax.v}（${uviMax.lvl}）— ${uviMax.tip}` : '');
     return `<div class="ctitle"><span class="ico">🌤</span>天気${refresh}</div>
       ${stale?`<div style="font-size:11px;color:var(--faint);margin-bottom:6px">⚠️ 最新の取得に失敗。前回の天気を表示中（↻で再試行）</div>`:''}
       <div class="w-top"><div class="w-ico">${w.icon||'🌡️'}</div><div class="w-temp">${w.tempC}<small>°C</small></div><div class="w-desc">${esc(w.desc)}</div></div>
-      <div class="w-stats"><span>体感 <b>${w.feels}°</b></span><span>湿度 <b>${w.humidity}%</b></span><span>風 <b>${w.windKph}km/h</b></span></div>
+      <div class="w-stats"><span>体感 <b>${w.feels}°</b></span><span>湿度 <b>${w.humidity}%</b></span><span>風 <b>${w.windKph}km/h</b></span>${uvStat}</div>
       ${w.hint?`<div class="w-hint">${esc(w.hint)}</div>`:''}
+      ${uvTip?`<div class="w-hint" style="font-weight:600;color:var(--ink2)">${esc(uvTip)}</div>`:''}
       ${hoursHTML||''}
       <div class="w-loc">📍 ${esc(w.loc)}</div>`;
   }
@@ -553,8 +571,8 @@
     }catch(_){ if(CFG.DEFAULT_COORDS){ const [a,b]=CFG.DEFAULT_COORDS.split(',');lat=+a;lon=+b;label=CFG.CITY_LABEL||city; } }
     if(lat==null){ if(!(wc&&wc.w)) card.innerHTML=`<div class="ctitle"><span class="ico">🌤</span>天気</div><div class="err">都市が見つかりませんでした。別の都市名（ローマ字推奨）でお試しください。</div>`; return; }
     const wurl=`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}`
-      +`&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m`
-      +`&hourly=temperature_2m,weather_code,precipitation_probability&forecast_days=2`
+      +`&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,uv_index`
+      +`&hourly=temperature_2m,weather_code,precipitation_probability&daily=uv_index_max&forecast_days=2`
       +`&wind_speed_unit=kmh&timezone=auto&_=${Date.now()}`;
     const d=await omFetch(wurl,8000);
     if(!d||!d.current){
@@ -586,9 +604,12 @@
       else if(sunAt!==null) hint=`🌤 ${sunAt}時ごろから晴れる見込み`;
       else hint='⛅ くもりがち。雨の心配は少なめ';
     }
+    // UV: 現在値を優先。夜間など0/欠損時は今日の最大UVを併記用に確保。
+    const uvNow=(cu.uv_index!=null)?cu.uv_index:null;
+    const uvMax=(d.daily&&d.daily.uv_index_max&&d.daily.uv_index_max[0]!=null)?d.daily.uv_index_max[0]:null;
     const w={tempC:Math.round(cu.temperature_2m),feels:Math.round(cu.apparent_temperature),
       humidity:cu.relative_humidity_2m,windKph:Math.round(cu.wind_speed_10m),
-      desc:wm[1],code:cu.weather_code,icon:wm[0],loc:label,hint};
+      desc:wm[1],code:cu.weather_code,icon:wm[0],loc:label,hint,uv:uvNow,uvMax};
     const hoursHTML = blocks.length? `<div class="w-hours">${blocks.map(b=>
       `<div class="wh"><div class="wh-t">${b.h}時</div><div class="wh-i">${b.icon}</div><div class="wh-d">${b.temp}°</div>${(b.pop>=20)?`<div class="wh-p">💧${b.pop}%</div>`:''}</div>`).join('')}</div>` : '';
     currentWeather=w; renderOutfit(w); renderBrief();
